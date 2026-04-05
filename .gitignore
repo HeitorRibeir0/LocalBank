@@ -22,3 +22,4 @@ local.properties
 
 # Google Services (contém chaves do Firebase — não versionar)
 google-services.json
+.claude/
