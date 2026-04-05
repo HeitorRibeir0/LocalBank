@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Emerald Fintech Palette -->
+    <color name="emerald">#FF00C9A7</color>
+    <color name="emerald_dark">#FF009B7D</color>
+    <color name="dark_bg">#FF0D0D0D</color>
+    <color name="dark_surface">#FF1A1A2E</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+</resources>

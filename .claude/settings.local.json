@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Heitor/AndroidStudioProjects/LocalBank -type f \\\\\\(-name *.rules -o -name *firestore* -o -name *security* \\\\\\))"
+    ]
+  }
+}
