@@ -75,6 +75,32 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                         fontWeight = FontWeight.Bold,
                         letterSpacing = (-1).sp
                     )
+                    if (state.pendingScheduledTotal > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "Projetado: ",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = currency.format(state.projectedBalance),
+                                color = if (state.projectedBalance >= 0)
+                                    Color(0xFF90FFCC) else Color(0xFFFFAB91),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "  (−${currency.format(state.pendingScheduledTotal)} pendentes)",
+                                color = Color.White.copy(alpha = 0.45f),
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(20.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),

@@ -19,6 +19,8 @@ data class DashboardUiState(
     val totalIncome: Double = 0.0,
     val totalExpense: Double = 0.0,
     val balance: Double = 0.0,
+    val projectedBalance: Double = 0.0,
+    val pendingScheduledTotal: Double = 0.0,
     val recentTransactions: List<Transaction> = emptyList(),
     val upcomingExpenses: List<ScheduledExpense> = emptyList(),
     val categoryExpenses: List<CategoryExpenseSlice> = emptyList()
@@ -59,9 +61,11 @@ class DashboardViewModel(private val repository: FinanceRepository) : ViewModel(
 
         val now = System.currentTimeMillis()
         val in30Days = now + 30L * 24 * 60 * 60 * 1000
-        val upcoming = scheduled
-            .filter { !it.isPaid && it.dueDate <= in30Days }
+        val pending = scheduled.filter { !it.isPaid }
+        val upcoming = pending
+            .filter { it.dueDate <= in30Days }
             .sortedBy { it.dueDate }
+        val pendingTotal = pending.sumOf { it.amount }
 
         // gastos por categoria no mês (para o gráfico donut)
         val categoryExpenses = monthTransactions
@@ -78,12 +82,14 @@ class DashboardViewModel(private val repository: FinanceRepository) : ViewModel(
             .sortedByDescending { it.amount }
 
         DashboardUiState(
-            totalIncome        = income,
-            totalExpense       = expense,
-            balance            = income - expense,
-            recentTransactions = transactions.take(5),
-            upcomingExpenses   = upcoming,
-            categoryExpenses   = categoryExpenses
+            totalIncome           = income,
+            totalExpense          = expense,
+            balance               = income - expense,
+            projectedBalance      = (income - expense) - pendingTotal,
+            pendingScheduledTotal = pendingTotal,
+            recentTransactions    = transactions.take(5),
+            upcomingExpenses      = upcoming,
+            categoryExpenses      = categoryExpenses
         )
     }.stateIn(
         scope = viewModelScope,
