@@ -68,14 +68,14 @@ fun MainNavigation(
                     title = {
                         Text(
                             "LocalBank",
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             fontSize = 20.sp,
-                            color = appColors.primary
+                            color = appColors.textPrimary
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = DarkBg,
-                        titleContentColor = appColors.primary,
+                        titleContentColor = appColors.textPrimary,
                         actionIconContentColor = OnDarkTextSecondary
                     ),
                     actions = {
@@ -92,17 +92,25 @@ fun MainNavigation(
                     tonalElevation = 0.dp
                 ) {
                     screens.forEach { screen ->
+                        val selected = selectedScreen == screen
                         NavigationBarItem(
-                            selected = selectedScreen == screen,
+                            selected = selected,
                             onClick  = { selectedScreen = screen },
                             icon     = { Icon(screen.icon, contentDescription = screen.label) },
-                            label    = { Text(screen.label, fontSize = 11.sp) },
+                            label    = {
+                                Text(
+                                    screen.label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
+                                )
+                            },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = appColors.primary,
-                                selectedTextColor = appColors.primary,
+                                selectedIconColor   = appColors.primary,
+                                selectedTextColor   = appColors.primary,
                                 unselectedIconColor = OnDarkTextSecondary,
                                 unselectedTextColor = OnDarkTextSecondary,
-                                indicatorColor = appColors.primarySurface
+                                // pill quase invisível — a cor do ícone já comunica seleção
+                                indicatorColor      = appColors.brandPrimary.copy(alpha = 0.10f)
                             )
                         )
                     }

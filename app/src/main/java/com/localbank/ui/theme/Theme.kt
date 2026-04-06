@@ -14,43 +14,37 @@ import androidx.core.view.WindowCompat
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 
-private fun buildColorScheme(appColors: AppColors) = darkColorScheme(
-    primary = appColors.primary,
-    onPrimary = appColors.onPrimary,
-    primaryContainer = appColors.primarySurface,
-    onPrimaryContainer = appColors.primaryLight,
+private fun buildColorScheme(c: AppColors) = darkColorScheme(
+    primary             = c.brandPrimary,
+    onPrimary           = c.onBrandPrimary,
+    primaryContainer    = c.brandPrimarySurface,
+    onPrimaryContainer  = c.brandPrimaryLight,
 
-    secondary = AccentBlue,
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFF1A3355),
-    onSecondaryContainer = AccentBlue,
+    secondary           = c.info,
+    onSecondary         = Color.White,
+    secondaryContainer  = Color(0xFF1A3355),
+    onSecondaryContainer = c.info,
 
-    tertiary = AccentPurple,
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFF2D2050),
-    onTertiaryContainer = AccentPurple,
+    background          = c.background,
+    onBackground        = c.textPrimary,
 
-    background = DarkBg,
-    onBackground = OnDarkText,
+    surface             = c.surface,
+    onSurface           = c.textPrimary,
+    surfaceVariant      = c.surfaceVariant,
+    onSurfaceVariant    = c.textSecondary,
 
-    surface = DarkSurface,
-    onSurface = OnDarkText,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = OnDarkTextSecondary,
+    error               = c.error,
+    onError             = Color.White,
+    errorContainer      = Color(0xFF3D1515),
+    onErrorContainer    = c.error,
 
-    error = ExpenseRed,
-    onError = Color.White,
-    errorContainer = Color(0xFF3D1515),
-    onErrorContainer = ExpenseRed,
+    outline             = Color(0xFF3A3A55),
+    outlineVariant      = Color(0xFF2A2A40),
 
-    outline = Color(0xFF3A3A55),
-    outlineVariant = Color(0xFF2A2A40),
-
-    inverseSurface = OnDarkText,
-    inverseOnSurface = DarkBg,
-    inversePrimary = appColors.primaryDark,
-
-    surfaceTint = appColors.primary
+    inverseSurface      = c.textPrimary,
+    inverseOnSurface    = c.background,
+    inversePrimary      = c.brandPrimaryDark,
+    surfaceTint         = c.brandPrimary
 )
 
 private val Shapes = Shapes(

@@ -43,11 +43,11 @@ fun ScheduledScreen(viewModel: ExpenseViewModel) {
     Scaffold(
         containerColor = DarkBg,
         floatingActionButton = {
-            FloatingActionButton(
+            SmallFloatingActionButton(
                 onClick = { showDialog = true },
-                containerColor = appColors.primary,
-                contentColor = appColors.onPrimary,
-                shape = RoundedCornerShape(16.dp)
+                containerColor = appColors.brandPrimaryDark,
+                contentColor = appColors.textPrimary,
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Nova despesa agendada")
             }
@@ -123,22 +123,31 @@ fun ScheduledExpenseCard(
     expense: ScheduledExpense, currency: NumberFormat, sdf: SimpleDateFormat,
     onPay: () -> Unit, onDelete: () -> Unit
 ) {
-    val appColors = LocalAppColors.current
+    val c = LocalAppColors.current
     val daysLeft = ((expense.dueDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
-    val isUrgent = !expense.isPaid && daysLeft <= 7
+    val isUrgent = !expense.isPaid && daysLeft in 0..7
     val isOverdue = !expense.isPaid && daysLeft < 0
 
-    val accentColor = when {
-        expense.isPaid -> OnDarkTextSecondary.copy(alpha = 0.4f)
-        isOverdue -> ExpenseRed
-        isUrgent -> WarningAmber
-        else -> appColors.primary
+    // Barra lateral: cor só quando há problema
+    val barColor = when {
+        expense.isPaid -> c.surfaceVariant
+        isOverdue      -> c.error
+        isUrgent       -> c.warning
+        else           -> c.surfaceVariant
+    }
+
+    val metaColor = when {
+        expense.isPaid -> c.textSecondary
+        isOverdue      -> c.error
+        isUrgent       -> c.warning
+        else           -> c.textSecondary
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = c.card),
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -146,43 +155,65 @@ fun ScheduledExpenseCard(
                     .width(3.dp)
                     .height(44.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(accentColor)
+                    .background(barColor)
             )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(expense.description, fontWeight = FontWeight.Medium,
-                    color = if (expense.isPaid) OnDarkTextSecondary else OnDarkText)
+                Text(
+                    expense.description.ifBlank { "Despesa agendada" },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (expense.isPaid) c.textSecondary else c.textPrimary
+                )
                 Text(
                     text = when {
-                        expense.isPaid -> "Paga"
+                        expense.isPaid -> "Pago"
                         isOverdue      -> "Vencida há ${-daysLeft} dias"
                         daysLeft == 0  -> "Vence hoje"
-                        else           -> "Vence em ${sdf.format(Date(expense.dueDate))} ($daysLeft dias)"
-                    }, fontSize = 12.sp,
-                    color = when {
-                        expense.isPaid -> OnDarkTextSecondary
-                        isOverdue      -> ExpenseRed
-                        isUrgent       -> WarningAmber
-                        else           -> OnDarkTextSecondary
-                    }
+                        else           -> "Vence ${sdf.format(Date(expense.dueDate))} · $daysLeft dias"
+                    },
+                    fontSize = 12.sp,
+                    color = metaColor
                 )
                 if (expense.isRecurring && expense.recurrenceRule != null) {
-                    Text("Recorrente: ${expense.recurrenceRule.name.lowercase()
-                        .replaceFirstChar { it.uppercase() }}",
-                        fontSize = 11.sp, color = OnDarkTextSecondary)
+                    Text(
+                        "Recorrente · ${expense.recurrenceRule.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                        fontSize = 11.sp,
+                        color = c.textSecondary
+                    )
                 }
             }
-            Text(currency.format(expense.amount), fontWeight = FontWeight.Bold,
-                color = if (expense.isPaid) OnDarkTextSecondary else ExpenseRed)
-            Spacer(Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                // Valor: neutro por padrão, vermelho só se vencida
+                Text(
+                    currency.format(expense.amount),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    color = when {
+                        expense.isPaid -> c.textSecondary
+                        isOverdue      -> c.error
+                        else           -> c.textPrimary
+                    }
+                )
+                if (expense.isPaid) {
+                    com.localbank.finance.ui.components.StatusChip(
+                        "Pago",
+                        com.localbank.finance.ui.components.ChipVariant.SUCCESS
+                    )
+                }
+            }
+            Spacer(Modifier.width(6.dp))
             if (!expense.isPaid) {
-                IconButton(onClick = onPay, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Check, "Pagar", tint = IncomeGreen, modifier = Modifier.size(20.dp))
-                }
+                com.localbank.finance.ui.components.ItemActionButton(
+                    label = "Pagar",
+                    icon = Icons.Default.Check,
+                    onClick = onPay
+                )
+                Spacer(Modifier.width(4.dp))
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Delete, "Deletar", modifier = Modifier.size(16.dp),
-                    tint = OnDarkTextSecondary.copy(alpha = 0.6f))
+            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Delete, "Deletar", modifier = Modifier.size(14.dp),
+                    tint = c.textSecondary.copy(alpha = 0.5f))
             }
         }
     }

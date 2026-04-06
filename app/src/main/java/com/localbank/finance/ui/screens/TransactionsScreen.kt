@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.sp
 import com.localbank.finance.data.model.Account
 import com.localbank.finance.data.model.Category
 import com.localbank.finance.data.model.TransactionType
+import com.localbank.finance.data.model.displayName
+import androidx.compose.foundation.BorderStroke
+import com.localbank.finance.ui.components.CardTokens
 import com.localbank.finance.ui.components.DropdownSelector
 import com.localbank.finance.ui.viewmodel.ExpenseViewModel
 import com.localbank.ui.theme.*
@@ -45,11 +48,11 @@ fun TransactionsScreen(viewModel: ExpenseViewModel) {
     Scaffold(
         containerColor = DarkBg,
         floatingActionButton = {
-            FloatingActionButton(
+            SmallFloatingActionButton(
                 onClick = { showDialog = true },
-                containerColor = appColors.primary,
-                contentColor = appColors.onPrimary,
-                shape = RoundedCornerShape(16.dp)
+                containerColor = appColors.brandPrimaryDark,
+                contentColor = appColors.textPrimary,
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Nova transação")
             }
@@ -78,59 +81,66 @@ fun TransactionsScreen(viewModel: ExpenseViewModel) {
                     val isIncome = transaction.type == TransactionType.INCOME
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = DarkCard),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        shape = RoundedCornerShape(CardTokens.radiusCompact),
+                        colors = CardDefaults.cardColors(containerColor = appColors.card),
+                        elevation = CardDefaults.cardElevation(CardTokens.elevation),
+                        border = CardTokens.border
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Ícone: neutro para saída, sutil verde para entrada
                             Box(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
-                                        if (isIncome) IncomeGreen.copy(alpha = 0.12f)
-                                        else ExpenseRed.copy(alpha = 0.12f)
+                                        if (isIncome) appColors.success.copy(alpha = 0.12f)
+                                        else appColors.surfaceVariant
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                                     null,
-                                    tint = if (isIncome) IncomeGreen else ExpenseRed,
-                                    modifier = Modifier.size(20.dp)
+                                    tint = if (isIncome) appColors.success else appColors.textSecondary,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(text = transaction.description,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = OnDarkText)
-                                val catName = categories.find { it.id == transaction.categoryId }?.name
+                                Text(
+                                    text = transaction.description.ifBlank { if (isIncome) "Entrada" else "Saída" },
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = appColors.textPrimary
+                                )
+                                val catName = categories.find { it.id == transaction.categoryId }?.displayName
                                 Text(
                                     text = buildString {
                                         append(sdf.format(Date(transaction.date)))
-                                        if (catName != null) append(" • $catName")
+                                        if (catName != null) append(" · $catName")
                                     },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = OnDarkTextSecondary
+                                    fontSize = 12.sp,
+                                    color = appColors.textSecondary
                                 )
                             }
                             Column(horizontalAlignment = Alignment.End) {
+                                // Valor: verde para entrada, neutro para saída
                                 Text(
-                                    text = "${if (isIncome) "+" else "-"} ${currency.format(transaction.amount)}",
+                                    text = "${if (isIncome) "+" else "−"} ${currency.format(transaction.amount)}",
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (isIncome) IncomeGreen else ExpenseRed
+                                    fontSize = 15.sp,
+                                    color = if (isIncome) appColors.success else appColors.textPrimary
                                 )
                                 IconButton(
                                     onClick = { showDeleteDialog = transaction },
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = "Deletar",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = OnDarkTextSecondary.copy(alpha = 0.6f))
+                                        modifier = Modifier.size(14.dp),
+                                        tint = appColors.textSecondary.copy(alpha = 0.5f))
                                 }
                             }
                         }

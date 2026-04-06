@@ -23,8 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.localbank.finance.data.model.*
-import com.localbank.finance.ui.components.CurrencyField
-import com.localbank.finance.ui.components.DropdownSelector
+import com.localbank.finance.ui.components.*
+import com.localbank.finance.ui.util.CategoryColorPalette
+import com.localbank.finance.ui.util.normalizeCategoryName
 import com.localbank.finance.ui.viewmodel.ExpenseViewModel
 import com.localbank.ui.theme.*
 import java.text.NumberFormat
@@ -97,73 +98,80 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
+            SmallFloatingActionButton(
                 onClick = { showDialog = true },
-                containerColor = appColors.primary,
-                contentColor = appColors.onPrimary,
-                shape = RoundedCornerShape(16.dp)
+                containerColor = appColors.brandPrimaryDark,
+                contentColor = appColors.textPrimary,
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Nova despesa")
             }
         }
     ) { padding ->
-        if (filteredTransactions.isEmpty() && pendingScheduled.isEmpty() && paidScheduled.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.SwapVert, null,
-                        Modifier.size(64.dp),
-                        tint = OnDarkTextSecondary.copy(alpha = 0.4f)
-                    )
-                    Spacer(Modifier.height(16.dp))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // ── Seletor de mês (sempre visível) ──
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    IconButton(onClick = {
+                        val c = selectedCal.value.clone() as Calendar
+                        c.add(Calendar.MONTH, -1)
+                        selectedCal.value = c
+                    }) {
+                        Icon(Icons.Default.ChevronLeft, "Mês anterior", tint = OnDarkTextSecondary)
+                    }
                     Text(
-                        "Nenhuma despesa ainda.\nToque no + para adicionar.",
-                        color = OnDarkTextSecondary,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        text = monthSdf.format(selectedCal.value.time)
+                            .replaceFirstChar { it.uppercase() },
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp,
+                        color = if (isCurrentMonth) appColors.primary else OnDarkText,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
+                    IconButton(
+                        onClick = {
+                            val c = selectedCal.value.clone() as Calendar
+                            c.add(Calendar.MONTH, 1)
+                            selectedCal.value = c
+                        },
+                        enabled = !isCurrentMonth
+                    ) {
+                        Icon(Icons.Default.ChevronRight, "Próximo mês",
+                            tint = if (isCurrentMonth) OnDarkTextSecondary.copy(alpha = 0.3f)
+                                   else OnDarkTextSecondary)
+                    }
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Seletor de mês
+
+            // ── Estado vazio ──
+            if (filteredTransactions.isEmpty() && pendingScheduled.isEmpty() && paidScheduled.isEmpty()) {
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        IconButton(onClick = {
-                            val c = selectedCal.value.clone() as Calendar
-                            c.add(Calendar.MONTH, -1)
-                            selectedCal.value = c
-                        }) {
-                            Icon(Icons.Default.ChevronLeft, "Mês anterior", tint = OnDarkTextSecondary)
-                        }
-                        Text(
-                            text = monthSdf.format(selectedCal.value.time)
-                                .replaceFirstChar { it.uppercase() },
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp,
-                            color = if (isCurrentMonth) appColors.primary else OnDarkText,
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        )
-                        IconButton(
-                            onClick = {
-                                val c = selectedCal.value.clone() as Calendar
-                                c.add(Calendar.MONTH, 1)
-                                selectedCal.value = c
-                            },
-                            enabled = !isCurrentMonth
-                        ) {
-                            Icon(Icons.Default.ChevronRight, "Próximo mês",
-                                tint = if (isCurrentMonth) OnDarkTextSecondary.copy(alpha = 0.3f)
-                                       else OnDarkTextSecondary)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.SwapVert, null,
+                                Modifier.size(64.dp),
+                                tint = OnDarkTextSecondary.copy(alpha = 0.4f)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Nenhuma despesa neste mês.\nToque no + para adicionar.",
+                                color = OnDarkTextSecondary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
                         }
                     }
                 }
+            }
 
                 if (pendingScheduled.isNotEmpty()) {
                     item {
@@ -205,7 +213,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                     items(filteredTransactions) { tx ->
                         TransactionCard(
                             transaction = tx,
-                            categoryName = categories.find { it.id == tx.categoryId }?.name,
+                            categoryName = categories.find { it.id == tx.categoryId }?.displayName,
                             currency = currency, sdf = sdf,
                             onDelete = { showDeleteTx = tx },
                             onEdit = { showEditTx = tx }
@@ -214,7 +222,6 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                 }
                 item { Spacer(Modifier.height(80.dp)) }
             }
-        }
     }
 
     if (showDialog) {
@@ -289,64 +296,44 @@ fun TransactionCard(
     onDelete: () -> Unit,
     onEdit: () -> Unit = {}
 ) {
+    val c = LocalAppColors.current
     val isIncome = transaction.type == TransactionType.INCOME
+    val amountColor = if (isIncome) c.success else c.textPrimary
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = {},
-                onLongClick = onEdit
-            ),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            .combinedClickable(onClick = {}, onLongClick = onEdit),
+        shape = RoundedCornerShape(CardTokens.radiusCompact),
+        colors = CardDefaults.cardColors(containerColor = c.card),
+        elevation = CardDefaults.cardElevation(CardTokens.elevation)
     ) {
-        Row(modifier = Modifier.padding(12.dp)) {
-            // Ícone com fundo colorido
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        if (isIncome) IncomeGreen.copy(alpha = 0.12f)
-                        else ExpenseRed.copy(alpha = 0.12f)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                    null,
-                    tint = if (isIncome) IncomeGreen else ExpenseRed,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+        Row(
+            modifier = Modifier.padding(CardTokens.paddingInner),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ItemIconBox(
+                icon = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                tint = if (isIncome) c.success else c.textSecondary,
+                background = if (isIncome) c.success.copy(alpha = 0.12f)
+                             else c.surfaceVariant
+            )
             Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = transaction.description.ifBlank { if (isIncome) "Entrada" else "Saída" },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = OnDarkText
-                )
-                Text(
-                    text = buildString {
-                        append(sdf.format(Date(transaction.date)))
-                        if (categoryName != null) append(" • $categoryName")
-                        if (transaction.createdBy != null) append(" • por ${transaction.createdBy}")
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OnDarkTextSecondary
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "${if (isIncome) "+" else "-"} ${currency.format(transaction.amount)}",
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isIncome) IncomeGreen else ExpenseRed
-                )
+            ItemLeading(
+                title = transaction.description.ifBlank { if (isIncome) "Entrada" else "Saída" },
+                metadata = buildString {
+                    append(sdf.format(Date(transaction.date)))
+                    if (categoryName != null) append(" · $categoryName")
+                    if (transaction.createdBy != null) append(" · ${transaction.createdBy}")
+                }
+            )
+            ItemTrailing(
+                value = "${if (isIncome) "+" else "−"} ${currency.format(transaction.amount)}",
+                valueColor = amountColor
+            ) {
                 IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Delete, "Deletar", modifier = Modifier.size(16.dp),
-                        tint = OnDarkTextSecondary.copy(alpha = 0.6f))
+                    Icon(Icons.Default.Delete, "Deletar", modifier = Modifier.size(14.dp),
+                        tint = c.textSecondary.copy(alpha = 0.5f))
                 }
             }
         }
@@ -364,82 +351,69 @@ fun ScheduledCard(
     onDelete: () -> Unit,
     onEdit: () -> Unit = {}
 ) {
-    val appColors = LocalAppColors.current
+    val c = LocalAppColors.current
     val daysLeft = ((expense.dueDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
     val isOverdue = daysLeft < 0
 
     val accentColor = when {
-        isOverdue -> ExpenseRed
-        daysLeft <= 7 -> WarningAmber
-        else -> appColors.primary
+        isOverdue    -> c.error
+        daysLeft <= 7 -> c.warning
+        else          -> c.brandPrimary
     }
+    val metaText = when {
+        isOverdue     -> "Vencida há ${-daysLeft} dias"
+        daysLeft == 0 -> "Vence hoje"
+        else          -> "Vence ${sdf.format(Date(expense.dueDate))} · $daysLeft dias"
+    }.let { if (expense.isRecurring && expense.recurrenceRule != null)
+        "$it · ${expense.recurrenceRule.name.lowercase().replaceFirstChar { ch -> ch.uppercase() }}"
+    else it }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(onClick = {}, onLongClick = onEdit),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        shape = RoundedCornerShape(CardTokens.radiusCompact),
+        colors = CardDefaults.cardColors(containerColor = c.card),
+        elevation = CardDefaults.cardElevation(CardTokens.elevation)
     ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Barra lateral de status
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(accentColor)
-            )
+        Row(
+            modifier = Modifier.padding(CardTokens.paddingInner),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AccentBar(color = accentColor)
             Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(expense.description.ifBlank { "Despesa agendada" },
-                    fontWeight = FontWeight.Medium, color = OnDarkText)
-                Text(
-                    text = when {
-                        isOverdue     -> "Vencida há ${-daysLeft} dias"
-                        daysLeft == 0 -> "Vence hoje"
-                        else          -> "Vence ${sdf.format(Date(expense.dueDate))} ($daysLeft dias)"
-                    },
-                    fontSize = 12.sp,
-                    color = if (isOverdue) ExpenseRed else OnDarkTextSecondary
-                )
-                if (expense.isRecurring && expense.recurrenceRule != null) {
-                    Text("Recorrente: ${expense.recurrenceRule.name.lowercase()
-                        .replaceFirstChar { it.uppercase() }}",
-                        fontSize = 11.sp, color = OnDarkTextSecondary)
-                }
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    currency.format(expense.amount),
-                    fontWeight = FontWeight.Bold,
-                    color = if (expense.isPaid) OnDarkTextSecondary else ExpenseRed
-                )
+            ItemLeading(
+                title = expense.description.ifBlank { "Despesa agendada" },
+                metadata = metaText,
+                metaColor = if (isOverdue) c.error else c.textSecondary
+            )
+            ItemTrailing(
+                value = currency.format(expense.amount),
+                valueColor = if (expense.isPaid) c.textSecondary else c.error
+            ) {
                 if (expense.isPaid) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = IncomeGreen.copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            "PAGO",
-                            color = IncomeGreen,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+                    StatusChip("Pago", ChipVariant.SUCCESS)
+                } else if (isOverdue) {
+                    StatusChip("Vencida", ChipVariant.ERROR)
+                } else if (daysLeft == 0) {
+                    StatusChip("Hoje", ChipVariant.WARNING)
+                } else if (daysLeft <= 3) {
+                    StatusChip("Em $daysLeft dias", ChipVariant.WARNING)
                 }
             }
             Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(6.dp))
             if (!expense.isPaid) {
-                IconButton(onClick = onPay, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Check, "Pagar", tint = IncomeGreen, modifier = Modifier.size(20.dp))
-                }
+                ItemActionButton(
+                    label = "Pagar",
+                    icon = Icons.Default.Check,
+                    onClick = onPay
+                )
+                Spacer(Modifier.width(4.dp))
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Delete, "Deletar", modifier = Modifier.size(16.dp),
-                    tint = OnDarkTextSecondary.copy(alpha = 0.6f))
+            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Delete, "Deletar", modifier = Modifier.size(14.dp),
+                    tint = c.textSecondary.copy(alpha = 0.5f))
             }
         }
     }
@@ -529,7 +503,7 @@ fun AddExpenseDialog(
                         DropdownSelector(
                             label = "Categoria", items = filteredCategories,
                             selectedItem = selectedCategory,
-                            onItemSelected = { selectedCategory = it }, itemLabel = { it.name },
+                            onItemSelected = { selectedCategory = it }, itemLabel = { it.displayName },
                             allowNone = true, noneLabel = "Sem categoria",
                             onNoneSelected = { selectedCategory = null }, placeholder = "Sem categoria"
                         )
@@ -659,14 +633,10 @@ fun AddCategoryDialog(
 ) {
     val appColors = LocalAppColors.current
     var name by remember { mutableStateOf("") }
-    var selectedColor by remember { mutableStateOf("#FF5722") }
+    var selectedColor by remember { mutableStateOf(CategoryColorPalette.first()) }
     var showError by remember { mutableStateOf(false) }
 
-    val colors = listOf(
-        "#FF5722", "#FF9800", "#FFC107", "#4CAF50", "#8BC34A",
-        "#009688", "#00BCD4", "#2196F3", "#3F51B5", "#9C27B0",
-        "#E91E63", "#F44336", "#795548", "#607D8B", "#9E9E9E"
-    )
+    val colors = CategoryColorPalette
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -755,7 +725,7 @@ fun EditScheduledDialog(
                 DropdownSelector(
                     label = "Categoria (opcional)", items = expenseCategories,
                     selectedItem = selectedCategory?.takeIf { expenseCategories.contains(it) },
-                    onItemSelected = { selectedCategory = it }, itemLabel = { it.name },
+                    onItemSelected = { selectedCategory = it }, itemLabel = { it.displayName },
                     allowNone = true, noneLabel = "Sem categoria",
                     onNoneSelected = { selectedCategory = null }, placeholder = "Sem categoria"
                 )
@@ -926,7 +896,7 @@ fun EditTransactionDialog(
                     items = filteredCategories,
                     selectedItem = selectedCategory?.takeIf { filteredCategories.contains(it) },
                     onItemSelected = { selectedCategory = it },
-                    itemLabel = { it.name }
+                    itemLabel = { it.displayName }
                 )
 
                 if (showError) {

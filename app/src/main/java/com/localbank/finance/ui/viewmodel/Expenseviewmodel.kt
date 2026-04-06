@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.localbank.finance.auth.AuthManager
 import com.localbank.finance.data.model.*
 import com.localbank.finance.data.repository.FinanceRepository
+import com.localbank.finance.ui.util.normalizeCategoryName
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -161,17 +162,19 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
 
     fun addCategory(name: String, colorHex: String, type: TransactionType) {
         viewModelScope.launch {
-            val trimmed = name.trim()
-            // ID determinístico: mesma categoria sempre gera o mesmo ID em qualquer device
+            val canonical = normalizeCategoryName(name)
             val deterministicId = UUID.nameUUIDFromBytes(
-                "${type.name}:${trimmed.lowercase()}".toByteArray()
+                "${type.name}:${canonical.lowercase()}".toByteArray()
             ).toString()
-            // Só cria se ainda não existe (evita duplicatas no sync)
-            if (repository.getCategoryById(deterministicId) == null) {
+            val existing = repository.getCategoryById(deterministicId)
+            if (existing == null) {
                 repository.insertCategory(
-                    Category(id = deterministicId, name = trimmed, icon = "category",
+                    Category(id = deterministicId, name = canonical, icon = "category",
                         colorHex = colorHex, type = type)
                 )
+            } else if (existing.name != canonical) {
+                // Corrige o nome para a forma canônica se já existia com capitalização diferente
+                repository.updateCategory(existing.copy(name = canonical))
             }
         }
     }

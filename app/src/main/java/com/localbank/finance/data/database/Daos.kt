@@ -4,6 +4,7 @@ import androidx.room.*
 import com.localbank.finance.data.model.Account
 import com.localbank.finance.data.model.Budget
 import com.localbank.finance.data.model.Category
+import com.localbank.finance.data.model.SavingsGoal
 import com.localbank.finance.data.model.ScheduledExpense
 import com.localbank.finance.data.model.Transaction as TransactionEntity
 import com.localbank.finance.data.model.TransactionType

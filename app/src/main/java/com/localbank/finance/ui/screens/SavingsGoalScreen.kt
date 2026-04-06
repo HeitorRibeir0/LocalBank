@@ -21,7 +21,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.localbank.finance.data.model.SavingsGoal
+import androidx.compose.foundation.BorderStroke
+import com.localbank.finance.ui.components.CardTokens
+import com.localbank.finance.ui.components.ChipVariant
+import com.localbank.finance.ui.util.CategoryColorPalette
 import com.localbank.finance.ui.components.CurrencyField
+import com.localbank.finance.ui.components.ItemActionButton
+import com.localbank.finance.ui.components.StatusChip
 import com.localbank.finance.ui.viewmodel.SavingsGoalViewModel
 import com.localbank.ui.theme.*
 import java.text.NumberFormat
@@ -40,11 +46,11 @@ fun SavingsGoalScreen(viewModel: SavingsGoalViewModel) {
     Scaffold(
         containerColor = DarkBg,
         floatingActionButton = {
-            FloatingActionButton(
+            SmallFloatingActionButton(
                 onClick = { showAddDialog = true },
-                containerColor = appColors.primary,
-                contentColor = appColors.onPrimary,
-                shape = RoundedCornerShape(16.dp)
+                containerColor = appColors.brandPrimaryDark,
+                contentColor = appColors.textPrimary,
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Nova meta")
             }
@@ -142,9 +148,10 @@ private fun GoalCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(CardTokens.radius),
         colors = CardDefaults.cardColors(containerColor = DarkCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(CardTokens.elevation),
+        border = CardTokens.border
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -171,11 +178,7 @@ private fun GoalCard(
                     }
                 }
                 if (isComplete) {
-                    Surface(shape = RoundedCornerShape(6.dp), color = IncomeGreen.copy(alpha = 0.15f)) {
-                        Text("CONCLUÍDA", color = IncomeGreen, fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-                    }
+                    StatusChip("Concluída", ChipVariant.SUCCESS)
                 }
                 IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Edit, "Editar", modifier = Modifier.size(16.dp),
@@ -218,16 +221,11 @@ private fun GoalCard(
                 Text("${(progress * 100).toInt()}% atingido",
                     fontSize = 12.sp, color = OnDarkTextSecondary)
                 if (!isComplete) {
-                    TextButton(
-                        onClick = onDeposit,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Icon(Icons.Default.Add, null, modifier = Modifier.size(14.dp),
-                            tint = appColors.primary)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Depositar", color = appColors.primary, fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold)
-                    }
+                    ItemActionButton(
+                        label = "Depositar",
+                        icon = Icons.Default.Add,
+                        onClick = onDeposit
+                    )
                 }
             }
         }
@@ -296,10 +294,7 @@ private fun GoalFormDialog(
     }
     var showError by remember { mutableStateOf(false) }
 
-    val colors = listOf(
-        "#4CAF50", "#2196F3", "#9C27B0", "#FF9800", "#E91E63",
-        "#00BCD4", "#FF5722", "#3F51B5", "#8BC34A", "#FFC107"
-    )
+    val colors = CategoryColorPalette
 
     AlertDialog(
         onDismissRequest = onDismiss,

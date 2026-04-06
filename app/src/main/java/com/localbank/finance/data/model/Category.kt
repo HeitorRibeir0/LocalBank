@@ -4,6 +4,12 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.util.UUID
 
+/** Nome normalizado para exibição — garante title case mesmo em registros antigos. */
+val Category.displayName: String
+    get() = name.trim().lowercase().split(" ")
+        .filter { it.isNotEmpty() }
+        .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+
 @Entity(tableName = "categories")
 data class Category(
     @PrimaryKey

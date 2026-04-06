@@ -52,11 +52,11 @@ fun AccountsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            SmallFloatingActionButton(
                 onClick = { showAddDialog = true },
-                containerColor = appColors.primary,
-                contentColor = appColors.onPrimary,
-                shape = RoundedCornerShape(16.dp)
+                containerColor = appColors.brandPrimaryDark,
+                contentColor = appColors.textPrimary,
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Add, "Nova conta")
             }

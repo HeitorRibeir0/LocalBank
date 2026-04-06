@@ -31,12 +31,17 @@ import com.localbank.finance.ui.components.parseColor
 import com.localbank.finance.ui.viewmodel.ReportViewModel
 import com.localbank.ui.theme.*
 import java.text.NumberFormat
+import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun ReportScreen(viewModel: ReportViewModel) {
     val state by viewModel.uiState.collectAsState()
+    val selectedMonth by viewModel.selectedMonth.collectAsState()
     val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    val appColors = LocalAppColors.current
+    val monthSdf = SimpleDateFormat("MMMM yyyy", Locale("pt", "BR"))
+    val isCurrentMonth = viewModel.isCurrentMonth()
 
     LazyColumn(
         modifier = Modifier
@@ -45,8 +50,33 @@ fun ReportScreen(viewModel: ReportViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ── Seletor de mês ──
         item {
-            Text("Relatório do mês", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = OnDarkText)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                IconButton(onClick = { viewModel.navigateMonth(-1) }) {
+                    Icon(Icons.Default.ChevronLeft, "Mês anterior", tint = OnDarkTextSecondary)
+                }
+                Text(
+                    text = monthSdf.format(selectedMonth.time)
+                        .replaceFirstChar { it.uppercase() },
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = if (isCurrentMonth) appColors.primary else OnDarkText,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                IconButton(
+                    onClick = { viewModel.navigateMonth(1) },
+                    enabled = !isCurrentMonth
+                ) {
+                    Icon(Icons.Default.ChevronRight, "Próximo mês",
+                        tint = if (isCurrentMonth) OnDarkTextSecondary.copy(alpha = 0.3f)
+                               else OnDarkTextSecondary)
+                }
+            }
         }
 
         // Donut chart

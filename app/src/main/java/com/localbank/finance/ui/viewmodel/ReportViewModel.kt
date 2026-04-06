@@ -42,6 +42,23 @@ data class ReportUiState(
 
 class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
 
+    // ── Mês selecionado pelo usuário ──
+    private val _selectedMonth = MutableStateFlow(Calendar.getInstance())
+    val selectedMonth: StateFlow<Calendar> = _selectedMonth.asStateFlow()
+
+    fun navigateMonth(delta: Int) {
+        val c = _selectedMonth.value.clone() as Calendar
+        c.add(Calendar.MONTH, delta)
+        _selectedMonth.value = c
+    }
+
+    fun isCurrentMonth(): Boolean {
+        val now = Calendar.getInstance()
+        val sel = _selectedMonth.value
+        return sel.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+               sel.get(Calendar.MONTH) == now.get(Calendar.MONTH)
+    }
+
     private fun getMonthRange(cal: Calendar): Pair<Long, Long> {
         val c = cal.clone() as Calendar
         c.set(Calendar.DAY_OF_MONTH, 1)
@@ -61,13 +78,13 @@ class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
 
     val uiState: StateFlow<ReportUiState> = combine(
         repository.getAllTransactions(),
-        repository.getAllCategories()
-    ) { transactions, categories ->
+        repository.getAllCategories(),
+        _selectedMonth
+    ) { transactions, categories, selectedCal ->
 
-        val now = Calendar.getInstance()
-        val (monthFrom, monthTo) = getMonthRange(now)
+        val (monthFrom, monthTo) = getMonthRange(selectedCal)
 
-        // ── Gastos por categoria no mês atual ──
+        // ── Gastos por categoria no mês selecionado ──
         val monthExpenses = transactions.filter {
             it.type == TransactionType.EXPENSE && it.date in monthFrom..monthTo
         }
@@ -87,10 +104,10 @@ class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
             }
             .sortedByDescending { it.totalAmount }
 
-        // ── Comparativo dos últimos 6 meses ──
+        // ── Comparativo: 6 meses até o mês selecionado ──
         val sdf = SimpleDateFormat("MMM/yy", Locale("pt", "BR"))
         val monthlyComparison = (5 downTo 0).map { monthsAgo ->
-            val c = Calendar.getInstance()
+            val c = selectedCal.clone() as Calendar
             c.add(Calendar.MONTH, -monthsAgo)
             val (from, to) = getMonthRange(c)
             val label = sdf.format(c.time).replaceFirstChar { it.uppercase() }
@@ -103,17 +120,17 @@ class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
             MonthlyComparison(label, income, expense)
         }
 
-        // ── Panorama semestral ──
-        val currentMonth = now.get(Calendar.MONTH)  // 0-based
-        val currentYear  = now.get(Calendar.YEAR)
-        val isFirstSemester = currentMonth < 6
+        // ── Panorama semestral (baseado no mês selecionado) ──
+        val selectedMonthIdx = selectedCal.get(Calendar.MONTH)  // 0-based
+        val selectedYear     = selectedCal.get(Calendar.YEAR)
+        val isFirstSemester = selectedMonthIdx < 6
         val semesterStartMonth = if (isFirstSemester) 0 else 6
-        val semesterLabel = "${if (isFirstSemester) "1º" else "2º"} Semestre $currentYear"
+        val semesterLabel = "${if (isFirstSemester) "1º" else "2º"} Semestre $selectedYear"
         val monthLabelSdf = SimpleDateFormat("MMM", Locale("pt", "BR"))
 
         val semesterMonths = (semesterStartMonth until semesterStartMonth + 6).map { month ->
             val c = Calendar.getInstance()
-            c.set(Calendar.YEAR, currentYear)
+            c.set(Calendar.YEAR, selectedYear)
             c.set(Calendar.MONTH, month)
             val (from, to) = getMonthRange(c)
             val label = monthLabelSdf.format(c.time).replaceFirstChar { it.uppercase() }
@@ -132,7 +149,7 @@ class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
         val semesterTxExpenses = transactions.filter {
             it.type == TransactionType.EXPENSE && run {
                 val c = Calendar.getInstance().apply { timeInMillis = it.date }
-                c.get(Calendar.YEAR) == currentYear && c.get(Calendar.MONTH) in semesterStartMonth until semesterStartMonth + 6
+                c.get(Calendar.YEAR) == selectedYear && c.get(Calendar.MONTH) in semesterStartMonth until semesterStartMonth + 6
             }
         }
         val topCatEntry = semesterTxExpenses.groupBy { it.categoryId }

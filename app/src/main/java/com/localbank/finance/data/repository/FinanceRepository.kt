@@ -51,6 +51,11 @@ class FinanceRepository(
 
     suspend fun getCategoryById(id: String): Category? = categoryDao.getById(id)
 
+    suspend fun updateCategory(category: Category) {
+        categoryDao.update(category)
+        syncPush { it.pushCategory(householdId!!, category) }
+    }
+
     suspend fun insertCategory(category: Category) {
         categoryDao.insert(category)
         syncPush { it.pushCategory(householdId!!, category) }
