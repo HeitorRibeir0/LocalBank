@@ -39,6 +39,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
+      - name: Extract version info
+        id: version
+        run: |
+          CODE=$(grep 'versionCode' app/build.gradle.kts | grep -o '[0-9]*')
+          echo "CODE=$CODE" >> $GITHUB_OUTPUT
+
       - name: Build Release APK
         run: ./gradlew assembleRelease
         env:
@@ -72,3 +78,16 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Update Firebase Remote Config
+        run: python3 .github/scripts/update_remote_config.py
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          VERSION_CODE: ${{ steps.version.outputs.CODE }}
+          VERSION_NAME: ${{ steps.tag.outputs.TAG }}
+          APK_URL: https://github.com/HeitorRibeir0/LocalBank/releases/download/${{ steps.tag.outputs.TAG }}/LocalBank-${{ steps.tag.outputs.TAG }}.apk
