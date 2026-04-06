@@ -7,6 +7,16 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+fun gitVersionCode(): Int = try {
+    val process = Runtime.getRuntime().exec(arrayOf("git", "rev-list", "--count", "HEAD"))
+    process.inputStream.bufferedReader().readText().trim().toInt()
+} catch (_: Exception) { 1 }
+
+fun gitVersionName(): String = try {
+    val process = Runtime.getRuntime().exec(arrayOf("git", "describe", "--tags", "--abbrev=0"))
+    process.inputStream.bufferedReader().readText().trim().removePrefix("v")
+} catch (_: Exception) { "dev" }
+
 android {
     namespace = "com.localbank"
     compileSdk = 35
@@ -15,8 +25,8 @@ android {
         applicationId = "com.localbank"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.3"
+        versionCode = gitVersionCode()
+        versionName = gitVersionName()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
