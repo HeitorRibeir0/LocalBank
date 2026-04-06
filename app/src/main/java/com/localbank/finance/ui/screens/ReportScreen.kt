@@ -20,6 +20,8 @@ import com.localbank.finance.ui.components.BarChart
 import com.localbank.finance.ui.components.BarChartEntry
 import com.localbank.finance.ui.components.DonutChart
 import com.localbank.finance.ui.components.DonutSlice
+import com.localbank.finance.ui.components.TrendChart
+import com.localbank.finance.ui.components.TrendPoint
 import com.localbank.finance.ui.components.parseColor
 import com.localbank.finance.ui.viewmodel.ReportViewModel
 import com.localbank.ui.theme.*
@@ -58,6 +60,29 @@ fun ReportScreen(viewModel: ReportViewModel) {
                         DonutChart(
                             slices = state.categoryExpenses.map {
                                 DonutSlice(it.categoryName, it.totalAmount, it.colorHex)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Trend chart (linha de gastos)
+        if (state.monthlyComparison.any { it.expense > 0 }) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Tendência de gastos", fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp, color = OnDarkText)
+                        Spacer(Modifier.height(12.dp))
+                        TrendChart(
+                            points = state.monthlyComparison.map {
+                                TrendPoint(it.monthLabel, it.expense)
                             }
                         )
                     }
