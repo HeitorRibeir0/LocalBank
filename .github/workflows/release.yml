@@ -42,7 +42,7 @@ jobs:
       - name: Extract version info
         id: version
         run: |
-          CODE=$(grep 'versionCode' app/build.gradle.kts | grep -o '[0-9]*')
+          CODE=$(git rev-list --count HEAD)
           echo "CODE=$CODE" >> $GITHUB_OUTPUT
 
       - name: Build Release APK
