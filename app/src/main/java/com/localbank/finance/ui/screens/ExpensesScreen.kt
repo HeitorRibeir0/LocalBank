@@ -41,16 +41,32 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
 
     val appColors = LocalAppColors.current
+    val snackbarHostState = remember { SnackbarHostState() }
     var showDialog by remember { mutableStateOf(false) }
     var showDeleteTx by remember { mutableStateOf<Transaction?>(null) }
     var showEditTx by remember { mutableStateOf<Transaction?>(null) }
     var showEditScheduled by remember { mutableStateOf<ScheduledExpense?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.budgetAlert.collect { message ->
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Long)
+        }
+    }
 
     val pendingScheduled = scheduled.filter { !it.isPaid }
     val paidScheduled = scheduled.filter { it.isPaid }
 
     Scaffold(
         containerColor = DarkBg,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = DarkCard,
+                    contentColor = OnDarkText
+                )
+            }
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showDialog = true },

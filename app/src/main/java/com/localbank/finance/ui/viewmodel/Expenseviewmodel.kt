@@ -5,13 +5,19 @@ import androidx.lifecycle.viewModelScope
 import com.localbank.finance.auth.AuthManager
 import com.localbank.finance.data.model.*
 import com.localbank.finance.data.repository.FinanceRepository
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import java.util.UUID
 
 class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() {
+
+    private val _budgetAlert = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val budgetAlert: SharedFlow<String> = _budgetAlert
 
     val transactions: StateFlow<List<Transaction>> = repository
         .getAllTransactions()
@@ -64,6 +70,35 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
                     date        = date,
                     createdBy   = AuthManager.displayName
                 )
+            )
+            if (type == TransactionType.EXPENSE && categoryId != null) {
+                checkBudgetAlert(categoryId)
+            }
+        }
+    }
+
+    private suspend fun checkBudgetAlert(categoryId: String) {
+        val cal = Calendar.getInstance()
+        val monthYear = String.format("%04d-%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
+
+        cal.set(Calendar.DAY_OF_MONTH, 1); cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+        val from = cal.timeInMillis
+        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+        cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59); cal.set(Calendar.SECOND, 59)
+        val to = cal.timeInMillis
+
+        val budget = repository.getBudgetForCategory(categoryId, monthYear) ?: return
+        val spent = repository.getSpentForCategory(categoryId, from, to)
+        val pct = spent / budget.limitAmount
+        val categoryName = categories.value.find { it.id == categoryId }?.name ?: "categoria"
+
+        when {
+            pct >= 1.0 -> _budgetAlert.tryEmit(
+                "⚠ Limite de $categoryName estourado! Gasto: ${String.format("%.0f", pct * 100)}% do orçamento."
+            )
+            pct >= 0.8 -> _budgetAlert.tryEmit(
+                "Atenção: $categoryName atingiu ${String.format("%.0f", pct * 100)}% do limite mensal."
             )
         }
     }

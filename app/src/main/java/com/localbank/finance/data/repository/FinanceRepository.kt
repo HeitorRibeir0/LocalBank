@@ -4,6 +4,7 @@ import com.localbank.finance.data.database.*
 import com.localbank.finance.data.model.*
 import com.localbank.finance.sync.FirestoreSyncManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 class FinanceRepository(
     private val accountDao: AccountDao,
@@ -195,6 +196,12 @@ class FinanceRepository(
 
     fun getBudgetsByMonth(monthYear: String): Flow<List<Budget>> =
         budgetDao.getByMonth(monthYear)
+
+    suspend fun getBudgetForCategory(categoryId: String, monthYear: String): Budget? =
+        budgetDao.getByMonth(monthYear).first().find { it.categoryId == categoryId }
+
+    suspend fun getSpentForCategory(categoryId: String, from: Long, to: Long): Double =
+        transactionDao.getTotalExpenseByCategory(categoryId, from, to)
 
     fun getAllBudgets(): Flow<List<Budget>> =
         budgetDao.getAllBudgets()
