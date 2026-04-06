@@ -18,9 +18,10 @@ import java.util.UUID
         Category::class,
         Transaction::class,
         ScheduledExpense::class,
-        Budget::class
+        Budget::class,
+        SavingsGoal::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -31,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun scheduledExpenseDao(): ScheduledExpenseDao
     abstract fun budgetDao(): BudgetDao
+    abstract fun savingsGoalDao(): SavingsGoalDao
 
     companion object {
         @Volatile

@@ -12,6 +12,7 @@ class FinanceRepository(
     private val transactionDao: TransactionDao,
     private val scheduledExpenseDao: ScheduledExpenseDao,
     private val budgetDao: BudgetDao,
+    private val savingsGoalDao: SavingsGoalDao? = null,
     private val syncManager: FirestoreSyncManager? = null,
     private val householdId: String? = null
 ) {
@@ -220,6 +221,22 @@ class FinanceRepository(
         budgetDao.delete(budget)
         syncPush { it.deleteRemote(householdId!!, "budgets", budget.id) }
     }
+
+    // ─────────────────────────────────────────────
+    // Metas de economia
+    // ─────────────────────────────────────────────
+
+    fun getAllSavingsGoals(): Flow<List<SavingsGoal>> =
+        savingsGoalDao!!.getAll()
+
+    suspend fun insertSavingsGoal(goal: SavingsGoal) =
+        savingsGoalDao!!.insert(goal)
+
+    suspend fun updateSavingsGoal(goal: SavingsGoal) =
+        savingsGoalDao!!.update(goal)
+
+    suspend fun deleteSavingsGoal(goal: SavingsGoal) =
+        savingsGoalDao!!.delete(goal)
 
     // ─────────────────────────────────────────────
     // Sync helper

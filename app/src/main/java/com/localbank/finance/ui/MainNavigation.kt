@@ -16,12 +16,14 @@ import com.localbank.finance.ui.viewmodel.BudgetViewModel
 import com.localbank.finance.ui.viewmodel.DashboardViewModel
 import com.localbank.finance.ui.viewmodel.ExpenseViewModel
 import com.localbank.finance.ui.viewmodel.ReportViewModel
+import com.localbank.finance.ui.viewmodel.SavingsGoalViewModel
 import com.localbank.ui.theme.*
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     object Dashboard : Screen("dashboard", "Início",     Icons.Default.Dashboard)
     object Expenses  : Screen("expenses",  "Despesas",   Icons.Default.SwapVert)
     object Budget    : Screen("budget",    "Orçamento",  Icons.Default.PieChart)
+    object Goals     : Screen("goals",     "Metas",      Icons.Default.Savings)
     object Report    : Screen("report",    "Relatório",  Icons.Default.BarChart)
 }
 
@@ -32,13 +34,14 @@ fun MainNavigation(
     expenseViewModel: ExpenseViewModel,
     budgetViewModel: BudgetViewModel,
     reportViewModel: ReportViewModel,
+    savingsGoalViewModel: SavingsGoalViewModel,
     onLogout: () -> Unit = {},
     onThemeChanged: (AppThemeType) -> Unit = {},
     onClearData: () -> Unit = {},
     onClearAllData: () -> Unit = {}
 ) {
     val appColors = LocalAppColors.current
-    val screens = listOf(Screen.Dashboard, Screen.Expenses, Screen.Budget, Screen.Report)
+    val screens = listOf(Screen.Dashboard, Screen.Expenses, Screen.Budget, Screen.Goals, Screen.Report)
     var selectedScreen by remember { mutableStateOf<Screen>(Screen.Dashboard) }
     var showProfile by remember { mutableStateOf(false) }
     var showAccounts by remember { mutableStateOf(false) }
@@ -114,6 +117,7 @@ fun MainNavigation(
                     Screen.Dashboard -> DashboardScreen(viewModel = dashboardViewModel)
                     Screen.Expenses  -> ExpensesScreen(viewModel = expenseViewModel)
                     Screen.Budget    -> BudgetScreen(viewModel = budgetViewModel)
+                    Screen.Goals     -> SavingsGoalScreen(viewModel = savingsGoalViewModel)
                     Screen.Report    -> ReportScreen(viewModel = reportViewModel)
                 }
             }

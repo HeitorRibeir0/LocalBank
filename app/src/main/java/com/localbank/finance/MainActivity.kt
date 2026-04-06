@@ -212,6 +212,7 @@ class MainActivity : ComponentActivity() {
                             transactionDao = db.transactionDao(),
                             scheduledExpenseDao = db.scheduledExpenseDao(),
                             budgetDao = db.budgetDao(),
+                            savingsGoalDao = db.savingsGoalDao(),
                             syncManager = syncManager,
                             householdId = householdId
                         )
@@ -275,12 +276,14 @@ class MainActivity : ComponentActivity() {
                         val expenseVm: ExpenseViewModel = viewModel(factory = factory)
                         val budgetVm: BudgetViewModel = viewModel(factory = factory)
                         val reportVm: ReportViewModel = viewModel(factory = factory)
+                        val savingsVm: com.localbank.finance.ui.viewmodel.SavingsGoalViewModel = viewModel(factory = factory)
 
                         MainNavigation(
                             dashboardViewModel = dashboardVm,
                             expenseViewModel = expenseVm,
                             budgetViewModel = budgetVm,
                             reportViewModel = reportVm,
+                            savingsGoalViewModel = savingsVm,
                             onLogout = {
                                 syncManager.stopListening()
                                 authState = "login"

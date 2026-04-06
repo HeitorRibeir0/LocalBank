@@ -206,3 +206,22 @@ interface BudgetDao {
     @Query("DELETE FROM budgets")
     suspend fun deleteAll()
 }
+
+// ─────────────────────────────────────────────
+// SavingsGoalDao
+// ─────────────────────────────────────────────
+@Dao
+interface SavingsGoalDao {
+
+    @Query("SELECT * FROM savings_goals ORDER BY createdAt DESC")
+    fun getAll(): Flow<List<SavingsGoal>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(goal: SavingsGoal): Long
+
+    @Update
+    suspend fun update(goal: SavingsGoal)
+
+    @Delete
+    suspend fun delete(goal: SavingsGoal)
+}
