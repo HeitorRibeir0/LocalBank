@@ -166,9 +166,26 @@ class FinanceRepository(
             scheduledId = expense.id
         )
         insertTransaction(transaction)
-        // Atualizar estado no Firestore
         syncPush {
             it.pushScheduledExpense(householdId!!, expense.copy(isPaid = true))
+        }
+
+        // Criar próxima ocorrência automaticamente
+        if (expense.isRecurring && expense.recurrenceRule != null) {
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = expense.dueDate }
+            when (expense.recurrenceRule) {
+                RecurrenceRule.DAILY   -> cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                RecurrenceRule.WEEKLY  -> cal.add(java.util.Calendar.WEEK_OF_YEAR, 1)
+                RecurrenceRule.MONTHLY -> cal.add(java.util.Calendar.MONTH, 1)
+                RecurrenceRule.YEARLY  -> cal.add(java.util.Calendar.YEAR, 1)
+            }
+            val next = expense.copy(
+                id      = java.util.UUID.randomUUID().toString(),
+                dueDate = cal.timeInMillis,
+                isPaid  = false,
+                notified = false
+            )
+            insertScheduled(next)
         }
     }
 
