@@ -20,7 +20,7 @@ object UpdateChecker {
         val config = FirebaseRemoteConfig.getInstance()
 
         val settings = FirebaseRemoteConfigSettings.Builder()
-            .setMinimumFetchIntervalInSeconds(3600) // 1 hora de cache
+            .setMinimumFetchIntervalInSeconds(600) // busca no máximo a cada 10 minutos
             .build()
         config.setConfigSettingsAsync(settings).await()
 
