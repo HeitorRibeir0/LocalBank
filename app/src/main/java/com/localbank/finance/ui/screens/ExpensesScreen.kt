@@ -47,14 +47,43 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     var showEditTx by remember { mutableStateOf<Transaction?>(null) }
     var showEditScheduled by remember { mutableStateOf<ScheduledExpense?>(null) }
 
+    // Seletor de mês
+    val selectedCal = remember { mutableStateOf(Calendar.getInstance()) }
+    val monthSdf = SimpleDateFormat("MMMM yyyy", Locale("pt", "BR"))
+    val isCurrentMonth = remember(selectedCal.value) {
+        val now = Calendar.getInstance()
+        selectedCal.value.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+        selectedCal.value.get(Calendar.MONTH) == now.get(Calendar.MONTH)
+    }
+
+    fun monthRange(): Pair<Long, Long> {
+        val c = selectedCal.value.clone() as Calendar
+        c.set(Calendar.DAY_OF_MONTH, 1)
+        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0)
+        c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
+        val from = c.timeInMillis
+        c.set(Calendar.DAY_OF_MONTH, c.getActualMaximum(Calendar.DAY_OF_MONTH))
+        c.set(Calendar.HOUR_OF_DAY, 23); c.set(Calendar.MINUTE, 59); c.set(Calendar.SECOND, 59)
+        return Pair(from, c.timeInMillis)
+    }
+
+    val (monthFrom, monthTo) = remember(selectedCal.value) { monthRange() }
+
+    val filteredTransactions = remember(transactions, monthFrom, monthTo) {
+        transactions.filter { it.date in monthFrom..monthTo }
+    }
+    val pendingScheduled = remember(scheduled, monthFrom, monthTo) {
+        scheduled.filter { !it.isPaid && it.dueDate in monthFrom..monthTo }
+    }
+    val paidScheduled = remember(scheduled, monthFrom, monthTo) {
+        scheduled.filter { it.isPaid && it.dueDate in monthFrom..monthTo }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.budgetAlert.collect { message ->
             snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Long)
         }
     }
-
-    val pendingScheduled = scheduled.filter { !it.isPaid }
-    val paidScheduled = scheduled.filter { it.isPaid }
 
     Scaffold(
         containerColor = DarkBg,
@@ -78,7 +107,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
             }
         }
     ) { padding ->
-        if (transactions.isEmpty() && scheduled.isEmpty()) {
+        if (filteredTransactions.isEmpty() && pendingScheduled.isEmpty() && paidScheduled.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
@@ -99,6 +128,43 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Seletor de mês
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        IconButton(onClick = {
+                            val c = selectedCal.value.clone() as Calendar
+                            c.add(Calendar.MONTH, -1)
+                            selectedCal.value = c
+                        }) {
+                            Icon(Icons.Default.ChevronLeft, "Mês anterior", tint = OnDarkTextSecondary)
+                        }
+                        Text(
+                            text = monthSdf.format(selectedCal.value.time)
+                                .replaceFirstChar { it.uppercase() },
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp,
+                            color = if (isCurrentMonth) appColors.primary else OnDarkText,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                        IconButton(
+                            onClick = {
+                                val c = selectedCal.value.clone() as Calendar
+                                c.add(Calendar.MONTH, 1)
+                                selectedCal.value = c
+                            },
+                            enabled = !isCurrentMonth
+                        ) {
+                            Icon(Icons.Default.ChevronRight, "Próximo mês",
+                                tint = if (isCurrentMonth) OnDarkTextSecondary.copy(alpha = 0.3f)
+                                       else OnDarkTextSecondary)
+                        }
+                    }
+                }
+
                 if (pendingScheduled.isNotEmpty()) {
                     item {
                         Text("Agendadas pendentes", fontWeight = FontWeight.SemiBold,
@@ -131,12 +197,12 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                     item { Spacer(Modifier.height(8.dp)) }
                 }
 
-                if (transactions.isNotEmpty()) {
+                if (filteredTransactions.isNotEmpty()) {
                     item {
                         Text("Histórico", fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp, color = OnDarkText)
                     }
-                    items(transactions) { tx ->
+                    items(filteredTransactions) { tx ->
                         TransactionCard(
                             transaction = tx,
                             categoryName = categories.find { it.id == tx.categoryId }?.name,
