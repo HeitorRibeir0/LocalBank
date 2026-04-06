@@ -44,6 +44,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     var showDialog by remember { mutableStateOf(false) }
     var showDeleteTx by remember { mutableStateOf<Transaction?>(null) }
     var showEditTx by remember { mutableStateOf<Transaction?>(null) }
+    var showEditScheduled by remember { mutableStateOf<ScheduledExpense?>(null) }
 
     val pendingScheduled = scheduled.filter { !it.isPaid }
     val paidScheduled = scheduled.filter { it.isPaid }
@@ -91,7 +92,8 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                         ScheduledCard(
                             expense = expense, currency = currency, sdf = sdf,
                             onPay = { viewModel.payScheduledExpense(expense) },
-                            onDelete = { viewModel.deleteScheduledExpense(expense) }
+                            onDelete = { viewModel.deleteScheduledExpense(expense) },
+                            onEdit = { showEditScheduled = expense }
                         )
                     }
                     item { Spacer(Modifier.height(8.dp)) }
@@ -106,7 +108,8 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                         ScheduledCard(
                             expense = expense, currency = currency, sdf = sdf,
                             onPay = {},
-                            onDelete = { viewModel.deleteScheduledExpense(expense) }
+                            onDelete = { viewModel.deleteScheduledExpense(expense) },
+                            onEdit = { showEditScheduled = expense }
                         )
                     }
                     item { Spacer(Modifier.height(8.dp)) }
@@ -175,6 +178,19 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
             onConfirm = { updated ->
                 viewModel.updateTransaction(tx, updated)
                 showEditTx = null
+            }
+        )
+    }
+
+    showEditScheduled?.let { expense ->
+        EditScheduledDialog(
+            expense = expense,
+            accounts = accounts,
+            categories = categories,
+            onDismiss = { showEditScheduled = null },
+            onConfirm = { updated ->
+                viewModel.updateScheduledExpense(updated)
+                showEditScheduled = null
             }
         )
     }
@@ -256,13 +272,15 @@ fun TransactionCard(
 }
 
 // ── Card de agendada ──
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ScheduledCard(
     expense: ScheduledExpense,
     currency: NumberFormat,
     sdf: SimpleDateFormat,
     onPay: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEdit: () -> Unit = {}
 ) {
     val appColors = LocalAppColors.current
     val daysLeft = ((expense.dueDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
@@ -275,7 +293,9 @@ fun ScheduledCard(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = {}, onLongClick = onEdit),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = DarkCard),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -613,6 +633,130 @@ fun AddCategoryDialog(
                 if (name.isBlank()) { showError = true; return@TextButton }
                 onConfirm(name.trim(), selectedColor)
             }) { Text("Criar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) } }
+    )
+}
+
+@Composable
+fun EditScheduledDialog(
+    expense: ScheduledExpense,
+    accounts: List<Account>,
+    categories: List<Category>,
+    onDismiss: () -> Unit,
+    onConfirm: (ScheduledExpense) -> Unit
+) {
+    val appColors = LocalAppColors.current
+    val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+
+    var description by remember { mutableStateOf(expense.description) }
+    var amountRaw by remember { mutableStateOf((expense.amount * 100).toLong().toString()) }
+    var dueDateText by remember { mutableStateOf(sdf.format(Date(expense.dueDate))) }
+    var isRecurring by remember { mutableStateOf(expense.isRecurring) }
+    var recurrenceRule by remember { mutableStateOf(expense.recurrenceRule ?: RecurrenceRule.MONTHLY) }
+    var selectedAccount by remember { mutableStateOf(accounts.find { it.id == expense.accountId }) }
+    var selectedCategory by remember { mutableStateOf(categories.find { it.id == expense.categoryId }) }
+    var showError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkCard,
+        title = { Text("Editar agendada", color = OnDarkText, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                DropdownSelector(
+                    label = "Conta", items = accounts, selectedItem = selectedAccount,
+                    onItemSelected = { selectedAccount = it }, itemLabel = { it.name }
+                )
+
+                val expenseCategories = categories.filter { it.type == TransactionType.EXPENSE }
+                DropdownSelector(
+                    label = "Categoria (opcional)", items = expenseCategories,
+                    selectedItem = selectedCategory?.takeIf { expenseCategories.contains(it) },
+                    onItemSelected = { selectedCategory = it }, itemLabel = { it.name },
+                    allowNone = true, noneLabel = "Sem categoria",
+                    onNoneSelected = { selectedCategory = null }, placeholder = "Sem categoria"
+                )
+
+                OutlinedTextField(
+                    value = description, onValueChange = { description = it },
+                    label = { Text("Descrição") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = appColors.primary,
+                        focusedLabelColor = appColors.primary,
+                        cursorColor = appColors.primary
+                    )
+                )
+
+                CurrencyField(
+                    rawValue = amountRaw,
+                    onRawValueChange = { amountRaw = it; showError = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = dueDateText, onValueChange = { dueDateText = it; showError = false },
+                    label = { Text("Vencimento (dd/MM/yyyy)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = appColors.primary,
+                        focusedLabelColor = appColors.primary,
+                        cursorColor = appColors.primary
+                    )
+                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = isRecurring, onCheckedChange = { isRecurring = it },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = appColors.primary,
+                            checkmarkColor = appColors.onPrimary
+                        )
+                    )
+                    Text("Recorrente", color = OnDarkText)
+                }
+
+                if (isRecurring) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        RecurrenceRule.entries.forEach { rule ->
+                            FilterChip(
+                                selected = recurrenceRule == rule,
+                                onClick = { recurrenceRule = rule },
+                                label = { Text(rule.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = appColors.primary.copy(alpha = 0.2f),
+                                    selectedLabelColor = appColors.primary
+                                )
+                            )
+                        }
+                    }
+                }
+
+                if (showError) {
+                    Text("Verifique os campos", color = ExpenseRed,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val account = selectedAccount
+                val amount = (amountRaw.toLongOrNull() ?: 0) / 100.0
+                val dueDate = try { sdf.parse(dueDateText)?.time } catch (_: Exception) { null }
+                if (account == null || amount <= 0 || dueDate == null) { showError = true; return@TextButton }
+                onConfirm(
+                    expense.copy(
+                        accountId = account.id,
+                        categoryId = selectedCategory?.id,
+                        description = description.trim(),
+                        amount = amount,
+                        dueDate = dueDate,
+                        isRecurring = isRecurring,
+                        recurrenceRule = if (isRecurring) recurrenceRule else null
+                    )
+                )
+            }) { Text("Salvar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) } }
     )

@@ -116,6 +116,12 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
         }
     }
 
+    fun updateScheduledExpense(expense: ScheduledExpense) {
+        viewModelScope.launch {
+            repository.updateScheduled(expense)
+        }
+    }
+
     // ── Categorias ──
 
     fun addCategory(name: String, colorHex: String, type: TransactionType) {
