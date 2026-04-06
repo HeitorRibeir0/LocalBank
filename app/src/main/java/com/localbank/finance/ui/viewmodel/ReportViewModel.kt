@@ -21,10 +21,23 @@ data class MonthlyComparison(
     val expense: Double
 )
 
+data class SemesterReport(
+    val label: String,                          // "1º Semestre 2026"
+    val totalIncome: Double,
+    val totalExpense: Double,
+    val balance: Double,
+    val bestMonth: String,                      // mês com menor gasto
+    val worstMonth: String,                     // mês com maior gasto
+    val topCategory: String,                    // categoria mais gasta
+    val topCategoryColor: String,
+    val savingsRate: Float                      // % da renda economizada
+)
+
 data class ReportUiState(
     val categoryExpenses: List<CategoryExpense> = emptyList(),
     val monthlyComparison: List<MonthlyComparison> = emptyList(),
-    val totalExpenseThisMonth: Double = 0.0
+    val totalExpenseThisMonth: Double = 0.0,
+    val semesterReport: SemesterReport? = null
 )
 
 class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
@@ -90,10 +103,62 @@ class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
             MonthlyComparison(label, income, expense)
         }
 
+        // ── Panorama semestral ──
+        val currentMonth = now.get(Calendar.MONTH)  // 0-based
+        val currentYear  = now.get(Calendar.YEAR)
+        val isFirstSemester = currentMonth < 6
+        val semesterStartMonth = if (isFirstSemester) 0 else 6
+        val semesterLabel = "${if (isFirstSemester) "1º" else "2º"} Semestre $currentYear"
+        val monthLabelSdf = SimpleDateFormat("MMM", Locale("pt", "BR"))
+
+        val semesterMonths = (semesterStartMonth until semesterStartMonth + 6).map { month ->
+            val c = Calendar.getInstance()
+            c.set(Calendar.YEAR, currentYear)
+            c.set(Calendar.MONTH, month)
+            val (from, to) = getMonthRange(c)
+            val label = monthLabelSdf.format(c.time).replaceFirstChar { it.uppercase() }
+            val inc = transactions.filter { it.type == TransactionType.INCOME && it.date in from..to }.sumOf { it.amount }
+            val exp = transactions.filter { it.type == TransactionType.EXPENSE && it.date in from..to }.sumOf { it.amount }
+            Triple(label, inc, exp)
+        }
+
+        val semesterIncome  = semesterMonths.sumOf { it.second }
+        val semesterExpense = semesterMonths.sumOf { it.third }
+
+        val activeMonths = semesterMonths.filter { it.third > 0 }
+        val bestMonth  = activeMonths.minByOrNull { it.third }?.first ?: "-"
+        val worstMonth = activeMonths.maxByOrNull { it.third }?.first ?: "-"
+
+        val semesterTxExpenses = transactions.filter {
+            it.type == TransactionType.EXPENSE && run {
+                val c = Calendar.getInstance().apply { timeInMillis = it.date }
+                c.get(Calendar.YEAR) == currentYear && c.get(Calendar.MONTH) in semesterStartMonth until semesterStartMonth + 6
+            }
+        }
+        val topCatEntry = semesterTxExpenses.groupBy { it.categoryId }
+            .maxByOrNull { (_, txns) -> txns.sumOf { it.amount } }
+        val topCategory = categories.find { it.id == topCatEntry?.key }
+        val savingsRate = if (semesterIncome > 0)
+            ((semesterIncome - semesterExpense) / semesterIncome * 100).toFloat().coerceIn(0f, 100f)
+        else 0f
+
+        val semesterReport = if (semesterExpense > 0 || semesterIncome > 0) SemesterReport(
+            label            = semesterLabel,
+            totalIncome      = semesterIncome,
+            totalExpense     = semesterExpense,
+            balance          = semesterIncome - semesterExpense,
+            bestMonth        = bestMonth,
+            worstMonth       = worstMonth,
+            topCategory      = topCategory?.name ?: "Sem dados",
+            topCategoryColor = topCategory?.colorHex ?: "#9E9E9E",
+            savingsRate      = savingsRate
+        ) else null
+
         ReportUiState(
-            categoryExpenses     = categoryExpenses,
-            monthlyComparison    = monthlyComparison,
-            totalExpenseThisMonth = totalExpense
+            categoryExpenses      = categoryExpenses,
+            monthlyComparison     = monthlyComparison,
+            totalExpenseThisMonth = totalExpense,
+            semesterReport        = semesterReport
         )
     }.stateIn(
         scope = viewModelScope,
