@@ -19,8 +19,10 @@ base_url = f'https://firebaseremoteconfig.googleapis.com/v1/projects/{project_id
 # GET current config to get ETag
 req = urllib.request.Request(base_url, headers={'Authorization': f'Bearer {token}'})
 with urllib.request.urlopen(req) as r:
-    etag = r.headers['ETag']
+    etag = r.headers.get('ETag') or r.headers.get('etag') or '*'
     config = json.loads(r.read())
+
+print(f"ETag: {etag}")
 
 # Update only our parameters (preserves everything else)
 params = config.get('parameters', {})
