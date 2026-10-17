@@ -1,15 +1,10 @@
 package com.localbank.finance.ui.screens
 
-import com.localbank.finance.ui.util.rememberCurrencyFormat
-import com.localbank.finance.ui.util.rememberDateFormat
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -17,384 +12,352 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.localbank.finance.data.model.ScheduledExpense
 import com.localbank.finance.data.model.Transaction
 import com.localbank.finance.data.model.TransactionType
-import com.localbank.finance.ui.components.CardTokens
-import com.localbank.finance.ui.components.DonutChart
-import com.localbank.finance.ui.components.DonutSlice
+import com.localbank.finance.ui.util.label
+import com.localbank.finance.ui.util.rememberAmountFormat
+import com.localbank.finance.ui.util.rememberCurrencyFormat
+import com.localbank.finance.ui.util.rememberDateFormat
+import com.localbank.finance.ui.util.signed
+import com.localbank.finance.ui.viewmodel.BillMark
+import com.localbank.finance.ui.viewmodel.DashboardUiState
 import com.localbank.finance.ui.viewmodel.DashboardViewModel
-import com.localbank.ui.theme.*
-import java.text.NumberFormat
-import java.text.SimpleDateFormat
-import java.util.*
+import com.localbank.ui.theme.AppColors
+import com.localbank.ui.theme.LocalAppColors
+import java.util.Calendar
+import java.util.Date
+
+private const val DAY_MS = 24L * 60 * 60 * 1000
 
 @Composable
-fun DashboardScreen(viewModel: DashboardViewModel) {
+fun DashboardScreen(
+    viewModel: DashboardViewModel,
+    onPayScheduled: (ScheduledExpense) -> Unit = {},
+    onOpenReport: () -> Unit = {}
+) {
     val state by viewModel.uiState.collectAsState()
     val c = LocalAppColors.current
-    val currency = rememberCurrencyFormat()
-    val isPositive = state.balance >= 0
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(c.background),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(bottom = 80.dp)
+        modifier = Modifier.fillMaxSize().background(c.background),
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 112.dp),
+        verticalArrangement = Arrangement.spacedBy(32.dp)
     ) {
+        item(key = "rhythm") { MonthRhythm(state, c) }
 
-        // ── 1. BLOCO DOMINANTE — saldo + status ──────────────────────────────
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.linearGradient(listOf(c.gradientStart, c.gradientEnd))
-                    )
-                    .padding(horizontal = 24.dp, vertical = 28.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()) {
-
-                    // Status positivo/negativo — primeira coisa que o olho lê
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isPositive) Icons.Default.TrendingUp
-                                          else Icons.Default.TrendingDown,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = if (isPositive) "Positivo este mês" else "Negativo este mês",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.3.sp
-                        )
-                    }
-
-                    Spacer(Modifier.height(6.dp))
-
-                    // Valor principal — centro visual
-                    Text(
-                        text = currency.format(state.balance),
-                        color = Color.White,
-                        fontSize = 42.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-1.5).sp,
-                        textAlign = TextAlign.Center
-                    )
-
-                    // Saldo projetado — suporte, sem competir
-                    if (state.pendingScheduledTotal > 0) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Projetado: ${currency.format(state.projectedBalance)}",
-                            color = Color.White.copy(alpha = 0.55f),
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    Spacer(Modifier.height(20.dp))
-
-                    // Entradas vs Saídas — peso secundário
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        MiniStat(
-                            label = "Entradas",
-                            value = currency.format(state.totalIncome),
-                            icon = Icons.Default.ArrowUpward,
-                            tint = Color.White.copy(alpha = 0.65f),
-                            valueTint = Color.White.copy(alpha = 0.9f)
-                        )
-                        Box(
-                            Modifier
-                                .width(1.dp)
-                                .height(36.dp)
-                                .background(Color.White.copy(alpha = 0.12f))
-                        )
-                        MiniStat(
-                            label = "Saídas",
-                            value = currency.format(state.totalExpense),
-                            icon = Icons.Default.ArrowDownward,
-                            tint = Color.White.copy(alpha = 0.65f),
-                            valueTint = Color.White.copy(alpha = 0.9f)
-                        )
-                    }
-                }
+        val due = state.urgentExpenses + state.upcomingExpenses
+        if (due.isNotEmpty()) {
+            item(key = "due") {
+                DueSoon(
+                    expenses = due.take(5),
+                    urgentIds = state.urgentExpenses.mapTo(HashSet()) { it.id },
+                    categoryNames = state.categoryNames,
+                    onPay = onPayScheduled,
+                    c = c
+                )
             }
         }
 
-        // ── 2. ALERTAS — só aparece se há algo urgente ───────────────────────
-        val urgentExpenses = state.urgentExpenses
-        if (urgentExpenses.isNotEmpty()) {
-            item {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SectionTitle("Atenção necessária", c.error)
-                    urgentExpenses.forEach { expense ->
-                        AlertCard(expense = expense, currency = currency, colors = c)
-                    }
-                }
-            }
-        }
-
-        // ── 3. PRÓXIMOS VENCIMENTOS (não urgentes) ───────────────────────────
-        val normalUpcoming = state.upcomingExpenses
-        if (normalUpcoming.isNotEmpty()) {
-            item {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SectionTitle("Próximos vencimentos", c.textPrimary)
-                    normalUpcoming.forEach { expense ->
-                        UpcomingExpenseCard(expense = expense, currency = currency)
-                    }
-                }
-            }
-        }
-
-        // ── 4. GASTOS POR CATEGORIA ───────────────────────────────────────────
         if (state.categoryExpenses.isNotEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(CardTokens.radius),
-                    colors = CardDefaults.cardColors(containerColor = c.card),
-                    elevation = CardDefaults.cardElevation(CardTokens.elevation),
-                    border = CardTokens.border
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        SectionTitle("Gastos por categoria", c.textPrimary)
-                        Spacer(Modifier.height(12.dp))
-                        DonutChart(
-                            slices = state.categoryExpenses.map {
-                                DonutSlice(it.categoryName, it.amount, it.colorHex)
+            item(key = "where") { WhereItWent(state, onOpenReport, c) }
+        }
+
+        if (state.recentTransactions.isNotEmpty()) {
+            item(key = "recent") { RecentTransactions(state, c) }
+        }
+    }
+}
+
+// ── 1. Ritmo do mês: quanto dá para gastar por dia + régua de dias ──────────────
+
+@Composable
+private fun MonthRhythm(state: DashboardUiState, c: AppColors) {
+    val currency = rememberCurrencyFormat()
+    val amount = rememberAmountFormat()
+    val monthName = rememberDateFormat("MMMM").format(Date()).replaceFirstChar { it.uppercase() }
+    val over = state.dailyAllowance < 0
+
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(monthName, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.textPrimary,
+                modifier = Modifier.semantics { heading() })
+            Text("Saldo nas contas: ${currency.format(state.accountsBalance)}",
+                fontSize = 13.sp, color = c.textSecondary)
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(if (over) "Passou do orçamento do mês" else "Dá para gastar",
+                fontSize = 15.sp, color = if (over) c.error else c.textSecondary)
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val value = currency.format(kotlin.math.abs(state.dailyAllowance))
+                Text(
+                    value,
+                    style = MaterialTheme.typography.displayLarge.let {
+                        // Valores longos encolhem para caber ao lado de "por dia"
+                        when {
+                            value.length > 12 -> it.copy(fontSize = 34.sp, lineHeight = 40.sp)
+                            value.length > 9  -> it.copy(fontSize = 42.sp, lineHeight = 48.sp)
+                            else -> it
+                        }
+                    },
+                    color = if (over) c.error else c.brandPrimary,
+                    maxLines = 1
+                )
+                Text("por dia", fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+                    color = c.textPrimary, modifier = Modifier.padding(bottom = 8.dp))
+            }
+            Text(
+                if (over) "Faltam ${currency.format(-state.dailyAllowance * state.daysLeft)} para cobrir as contas até o fim do mês."
+                else if (state.daysLeft == 1) "Hoje é o último dia do mês, já descontando as contas agendadas."
+                else "Pelos próximos ${state.daysLeft} dias, já descontando as contas que vencem até o fim do mês.",
+                fontSize = 14.sp, lineHeight = 20.sp, color = c.textSecondary
+            )
+        }
+
+        DayStrip(state, c)
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Stat("Entrou", amount.signed(state.totalIncome, true), c.success, c, Modifier.weight(1f))
+            Stat("Saiu", amount.signed(state.totalExpense, false), c.error, c, Modifier.weight(1f))
+            Stat("A pagar", amount.format(state.pendingThisMonth), c.textPrimary, c, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun DayStrip(state: DashboardUiState, c: AppColors) {
+    val marks = state.billMarks
+    if (marks.isEmpty()) return
+    val dueDays = marks.indices.filter { marks[it] == BillMark.DUE }.map { it + 1 }
+    val description = buildString {
+        append("Dia ${state.today} de ${marks.size}.")
+        if (dueDays.isNotEmpty()) append(" Contas a vencer nos dias ${dueDays.joinToString(", ")}.")
+    }
+    val past = c.textMuted.copy(alpha = 0.55f)
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(48.dp).semantics { contentDescription = description },
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            marks.forEachIndexed { i, mark ->
+                val day = i + 1
+                val isToday = day == state.today
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(
+                        Modifier.fillMaxWidth()
+                            .height(if (isToday) 40.dp else if (day < state.today) 22.dp else 30.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(if (isToday) c.brandPrimary else if (day < state.today) past else c.surfaceVariant)
+                    )
+                    Box(
+                        Modifier.size(5.dp).clip(CircleShape).background(
+                            when (mark) {
+                                BillMark.DUE  -> c.error
+                                BillMark.PAID -> past
+                                BillMark.NONE -> Color.Transparent
                             }
                         )
-                    }
+                    )
                 }
             }
         }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("1", fontSize = 12.sp, color = c.textMuted)
+            Text("Hoje, ${state.today}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = c.textPrimary)
+            Text("${marks.size}", fontSize = 12.sp, color = c.textMuted)
+        }
+    }
+}
 
-        // ── 5. ÚLTIMAS TRANSAÇÕES ─────────────────────────────────────────────
-        if (state.recentTransactions.isNotEmpty()) {
-            item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    SectionTitle("Últimas transações", c.textPrimary)
-                    Spacer(Modifier.height(8.dp))
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = c.card),
-                        elevation = CardDefaults.cardElevation(0.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                            state.recentTransactions.forEachIndexed { index, transaction ->
-                                TransactionItem(transaction = transaction, currency = currency)
-                                if (index < state.recentTransactions.lastIndex) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(horizontal = 16.dp),
-                                        color = c.surfaceVariant
-                                    )
-                                }
-                            }
+@Composable
+private fun Stat(label: String, value: String, color: Color, c: AppColors, modifier: Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, fontSize = 13.sp, color = c.textSecondary)
+        Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
+    }
+}
+
+// ── 2. Vence logo ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun DueSoon(
+    expenses: List<ScheduledExpense>,
+    urgentIds: Set<String>,
+    categoryNames: Map<String, String>,
+    onPay: (ScheduledExpense) -> Unit,
+    c: AppColors
+) {
+    val amount = rememberAmountFormat()
+    val weekday = rememberDateFormat("EEE")
+    val dayOfMonth = rememberDateFormat("d")
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionHeading("Vence logo", c)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.card)) {
+            expenses.forEachIndexed { index, expense ->
+                val urgent = expense.id in urgentIds
+                val tone = if (urgent) c.error else c.textPrimary
+                val daysLeft = Math.floorDiv(startOfDay(expense.dueDate) - startOfDay(System.currentTimeMillis()), DAY_MS)
+                val whenLabel = when {
+                    daysLeft < 0  -> "atrasada"
+                    daysLeft == 0L -> "hoje"
+                    daysLeft == 1L -> "amanhã"
+                    else -> weekday.format(Date(expense.dueDate)).trimEnd('.')
+                }
+                val category = expense.categoryId?.let { categoryNames[it] } ?: "Sem categoria"
+                val recurrence = expense.recurrenceRule?.label?.lowercase() ?: "única"
+
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Column(Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(dayOfMonth.format(Date(expense.dueDate)), fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold, color = tone, lineHeight = 22.sp)
+                        Text(whenLabel, fontSize = 12.sp, color = if (urgent) c.error else c.textSecondary)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(expense.description.ifBlank { category }, fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold, color = c.textPrimary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("$category, $recurrence", fontSize = 13.sp, color = c.textSecondary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(amount.format(expense.amount), fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                            color = c.textPrimary)
+                        if (urgent) {
+                            OutlinedButton(
+                                onClick = { onPay(expense) },
+                                modifier = Modifier.height(36.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, c.brandPrimary),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = c.brandPrimary)
+                            ) { Text("Pagar", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
+                if (index < expenses.lastIndex) {
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = c.surfaceVariant)
+                }
             }
         }
     }
 }
 
-// ── Componentes internos ──────────────────────────────────────────────────────
+// ── 3. Para onde foi ───────────────────────────────────────────────────────────
 
 @Composable
-private fun SectionTitle(text: String, color: Color) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleLarge,   // 18sp SemiBold
-        color = color
-    )
-}
+private fun WhereItWent(state: DashboardUiState, onOpenReport: () -> Unit, c: AppColors) {
+    val amount = rememberAmountFormat()
+    val slices = state.categoryExpenses.take(6)
+    val max = slices.first().amount.takeIf { it > 0 } ?: 1.0
 
-@Composable
-private fun MiniStat(
-    label: String,
-    value: String,
-    icon: ImageVector,
-    tint: Color,
-    valueTint: Color
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(6.dp))
-        Column {
-            Text(label, color = tint, fontSize = 11.sp, letterSpacing = 0.3.sp)
-            Text(value, color = valueTint, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun AlertCard(expense: ScheduledExpense, currency: NumberFormat, colors: AppColors) {
-    val daysLeft = ((expense.dueDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
-    val isOverdue = daysLeft < 0
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = colors.error.copy(alpha = 0.08f)
-        ),
-        elevation = CardDefaults.cardElevation(0.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.Warning, null,
-                tint = colors.error,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    expense.description.ifBlank { "Despesa" },
-                    style = MaterialTheme.typography.bodyLarge,  // 16sp
-                    color = colors.textPrimary,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    if (isOverdue) "Vencida há ${-daysLeft} dias"
-                    else "Vence hoje${if (daysLeft == 1) " amanhã" else ""}",
-                    fontSize = 12.sp,
-                    color = colors.error
-                )
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween) {
+            SectionHeading("Para onde foi", c)
+            TextButton(onClick = onOpenReport) {
+                Text("Relatório", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = c.brandPrimary)
             }
-            Text(
-                currency.format(expense.amount),
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                color = colors.error
-            )
+        }
+        slices.forEachIndexed { i, slice ->
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(slice.categoryName, fontSize = 14.sp, color = c.textPrimary)
+                    Text(amount.format(slice.amount), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        color = c.textPrimary)
+                }
+                Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(c.card)) {
+                    Box(
+                        Modifier.fillMaxHeight()
+                            .fillMaxWidth((slice.amount / max).toFloat().coerceIn(0.02f, 1f))
+                            .clip(RoundedCornerShape(4.dp))
+                            // Só a maior categoria ganha cor: é a que pede atenção
+                            .background(if (i == 0) c.error else c.textMuted.copy(alpha = 0.55f))
+                    )
+                }
+            }
         }
     }
 }
 
-@Composable
-fun UpcomingExpenseCard(expense: ScheduledExpense, currency: NumberFormat) {
-    val c = LocalAppColors.current
-    val sdf = rememberDateFormat("dd/MM")
-    val daysLeft = ((expense.dueDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
-    val accentColor = if (daysLeft <= 7) c.warning else c.textSecondary
+// ── 4. Últimos lançamentos ─────────────────────────────────────────────────────
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
+@Composable
+private fun RecentTransactions(state: DashboardUiState, c: AppColors) {
+    val amount = rememberAmountFormat()
+    val shortDate = rememberDateFormat("dd/MM")
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        SectionHeading("Últimos lançamentos", c)
+        Spacer(Modifier.height(4.dp))
+        state.recentTransactions.forEach { tx ->
+            val income = tx.type == TransactionType.INCOME
+            val category = tx.categoryId?.let { state.categoryNames[it] } ?: "Sem categoria"
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Initial(tx.createdBy, c)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(tx.description.ifBlank { category }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                        color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("$category, ${relativeDay(tx, shortDate)}", fontSize = 13.sp, color = c.textSecondary,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text(amount.signed(tx.amount, income), fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = if (income) c.success else c.error)
+            }
+        }
+    }
+}
+
+/** Inicial de quem lançou — no lar compartilhado, ajuda a saber quem gastou. */
+@Composable
+private fun Initial(name: String?, c: AppColors) {
+    val letter = name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    Box(
+        Modifier.size(32.dp).clip(CircleShape).background(c.surfaceVariant)
+            .semantics { contentDescription = name?.let { "Lançado por $it" } ?: "Autor desconhecido" },
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(accentColor)
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = expense.description.ifBlank { "Despesa agendada" },
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,   // 14sp
-            color = c.textPrimary
-        )
-        Text(
-            text = sdf.format(Date(expense.dueDate)),
-            fontSize = 12.sp,
-            color = accentColor,
-            modifier = Modifier.padding(end = 12.dp)
-        )
-        Text(
-            text = currency.format(expense.amount),
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
-            color = c.textPrimary
-        )
+        Text(letter, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.textPrimary)
     }
 }
 
 @Composable
-fun TransactionItem(transaction: Transaction, currency: NumberFormat) {
-    val c = LocalAppColors.current
-    val sdf = rememberDateFormat("dd/MM")
-    val isIncome = transaction.type == TransactionType.INCOME
-    val amountColor = if (isIncome) c.success else c.textPrimary
+private fun SectionHeading(text: String, c: AppColors) {
+    Text(text, style = MaterialTheme.typography.headlineMedium, color = c.textPrimary,
+        modifier = Modifier.semantics { heading() })
+}
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Ícone compacto
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(
-                    if (isIncome) c.success.copy(alpha = 0.12f)
-                    else c.surfaceVariant
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (isIncome) Icons.Default.ArrowUpward
-                              else Icons.Default.ArrowDownward,
-                contentDescription = null,
-                tint = if (isIncome) c.success else c.textSecondary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = transaction.description.ifBlank { if (isIncome) "Entrada" else "Saída" },
-                style = MaterialTheme.typography.bodyMedium,   // 14sp
-                color = c.textPrimary,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = sdf.format(Date(transaction.date)),
-                fontSize = 12.sp,
-                color = c.textSecondary
-            )
-        }
-        Text(
-            text = "${if (isIncome) "+" else "−"} ${currency.format(transaction.amount)}",
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
-            color = amountColor
-        )
+private fun startOfDay(ms: Long): Long = Calendar.getInstance().apply {
+    timeInMillis = ms
+    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+}.timeInMillis
+
+private fun relativeDay(tx: Transaction, fmt: java.text.SimpleDateFormat): String {
+    val diff = Math.floorDiv(startOfDay(System.currentTimeMillis()) - startOfDay(tx.date), DAY_MS)
+    return when (diff) {
+        0L -> "hoje"
+        1L -> "ontem"
+        else -> fmt.format(Date(tx.date))
     }
 }

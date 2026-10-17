@@ -161,9 +161,9 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Emerald theme option
+                        // Tema Esmeralda (verde)
                         ThemeOption(
-                            name = "Emerald",
+                            name = "Esmeralda",
                             color1 = GradientEmeraldStart,
                             color2 = GradientEmeraldEnd,
                             isSelected = selectedTheme == AppThemeType.EMERALD,

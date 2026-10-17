@@ -35,40 +35,39 @@ fun BudgetScreen(viewModel: BudgetViewModel) {
     val currency = rememberCurrencyFormat()
     var showDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = DarkBg,
-        floatingActionButton = {
-            SmallFloatingActionButton(
-                onClick = { showDialog = true },
-                containerColor = appColors.brandPrimaryDark,
-                contentColor = appColors.textPrimary,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Novo orçamento")
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(appColors.background),
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 112.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item(key = "header") {
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Orçamento do mês", style = MaterialTheme.typography.headlineMedium, color = appColors.textPrimary)
+                OutlinedButton(
+                    onClick = { showDialog = true },
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, appColors.surfaceVariant),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = appColors.textPrimary)
+                ) { Text("Novo limite", fontWeight = FontWeight.SemiBold) }
             }
         }
-    ) { padding ->
         if (state.budgets.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.PieChart, null, Modifier.size(64.dp),
-                        tint = OnDarkTextSecondary.copy(alpha = 0.3f))
-                    Spacer(Modifier.height(16.dp))
-                    Text("Nenhum orçamento definido", color = OnDarkTextSecondary)
-                    Text("Defina limites por categoria para controlar seus gastos",
-                        fontSize = 13.sp, color = OnDarkTextSecondary.copy(alpha = 0.7f))
+            item(key = "empty") {
+                Column(Modifier.fillMaxWidth().padding(vertical = 56.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.PieChart, null, Modifier.size(56.dp),
+                        tint = appColors.textMuted.copy(alpha = 0.5f))
+                    Spacer(Modifier.height(8.dp))
+                    Text("Nenhum limite definido", color = appColors.textPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("Defina quanto o lar pode gastar por categoria. O app avisa em 80% e 100%.",
+                        fontSize = 14.sp, color = appColors.textSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item { Text("Orçamentos do mês", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = OnDarkText) }
-                items(state.budgets, key = { it.budget.id }) { item ->
-                    BudgetCard(item, currency) { viewModel.deleteBudget(item.budget) }
-                }
-                item { Spacer(Modifier.height(80.dp)) }
+            items(state.budgets, key = { it.budget.id }) { item ->
+                BudgetCard(item, currency) { viewModel.deleteBudget(item.budget) }
             }
         }
     }

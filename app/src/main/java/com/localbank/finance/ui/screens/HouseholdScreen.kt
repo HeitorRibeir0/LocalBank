@@ -62,7 +62,7 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
-                            colors = listOf(GradientEmeraldStart, GradientEmeraldEnd)
+                            colors = listOf(LocalAppColors.current.gradientStart, LocalAppColors.current.gradientEnd)
                         )
                     ),
                 contentAlignment = Alignment.Center

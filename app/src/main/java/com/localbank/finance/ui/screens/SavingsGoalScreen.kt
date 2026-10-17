@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.localbank.finance.data.model.SavingsGoal
 import androidx.compose.foundation.BorderStroke
 import com.localbank.finance.ui.components.CardTokens
@@ -41,56 +43,66 @@ import java.util.*
 @Composable
 fun SavingsGoalScreen(viewModel: SavingsGoalViewModel) {
     val goals by viewModel.goals.collectAsState()
-    val appColors = LocalAppColors.current
+    val c = LocalAppColors.current
     val currency = rememberCurrencyFormat()
     var showAddDialog by remember { mutableStateOf(false) }
     var showDepositDialog by remember { mutableStateOf<SavingsGoal?>(null) }
     var showEditDialog by remember { mutableStateOf<SavingsGoal?>(null) }
+    var confirmDelete by remember { mutableStateOf<SavingsGoal?>(null) }
 
-    Scaffold(
-        containerColor = DarkBg,
-        floatingActionButton = {
-            SmallFloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = appColors.brandPrimaryDark,
-                contentColor = appColors.textPrimary,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Nova meta")
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(c.background),
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 112.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item(key = "header") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Metas", style = MaterialTheme.typography.headlineMedium, color = c.textPrimary,
+                    modifier = Modifier.semantics { heading() })
+                OutlinedButton(
+                    onClick = { showAddDialog = true },
+                    border = BorderStroke(1.5.dp, c.surfaceVariant),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = c.textPrimary)
+                ) { Text("Nova meta", fontWeight = FontWeight.SemiBold) }
             }
         }
-    ) { padding ->
+
         if (goals.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Savings, null, Modifier.size(64.dp),
-                        tint = OnDarkTextSecondary.copy(alpha = 0.3f))
-                    Spacer(Modifier.height(16.dp))
-                    Text("Nenhuma meta criada", color = OnDarkTextSecondary,
-                        fontWeight = FontWeight.Medium)
-                    Text("Toque no + para criar sua primeira meta",
-                        fontSize = 13.sp, color = OnDarkTextSecondary.copy(alpha = 0.6f))
+            item(key = "empty") {
+                Column(Modifier.fillMaxWidth().padding(vertical = 56.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.Savings, null, Modifier.size(56.dp), tint = c.textMuted.copy(alpha = 0.5f))
+                    Spacer(Modifier.height(8.dp))
+                    Text("Nenhuma meta ainda", color = c.textPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("Crie uma meta para guardar dinheiro junto com o lar.",
+                        fontSize = 14.sp, color = c.textSecondary)
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Text("Metas de economia", fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp, color = OnDarkText)
-                }
-                items(goals, key = { it.id }) { goal ->
-                    GoalCard(
-                        goal = goal,
-                        currency = currency,
-                        onDeposit = { showDepositDialog = goal },
-                        onEdit = { showEditDialog = goal },
-                        onDelete = { viewModel.deleteGoal(goal) }
+            item(key = "total") {
+                val saved = goals.sumOf { it.savedAmount }
+                val target = goals.sumOf { it.targetAmount }
+                Column(Modifier.padding(top = 12.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("O lar já guardou", fontSize = 15.sp, color = c.textSecondary)
+                    Text(currency.format(saved), style = MaterialTheme.typography.displayLarge.copy(fontSize = 44.sp,
+                        lineHeight = 50.sp), color = c.textPrimary, maxLines = 1)
+                    Text(
+                        if (goals.size == 1) "de ${currency.format(target)} na meta"
+                        else "de ${currency.format(target)} nas ${goals.size} metas",
+                        fontSize = 14.sp, color = c.textSecondary
                     )
                 }
-                item { Spacer(Modifier.height(80.dp)) }
+            }
+            items(goals, key = { it.id }) { goal ->
+                GoalCard(
+                    goal = goal,
+                    currency = currency,
+                    onDeposit = { showDepositDialog = goal },
+                    onEdit = { showEditDialog = goal },
+                    onDelete = { confirmDelete = goal }
+                )
             }
         }
     }
@@ -133,6 +145,24 @@ fun SavingsGoalScreen(viewModel: SavingsGoalViewModel) {
             }
         )
     }
+
+    confirmDelete?.let { goal ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            containerColor = c.card,
+            title = { Text("Excluir \"${goal.name}\"?", color = c.textPrimary) },
+            text = { Text("A meta some para todos do lar. O saldo das contas não muda.",
+                color = c.textSecondary) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteGoal(goal); confirmDelete = null }) {
+                    Text("Excluir meta", color = c.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = null }) { Text("Cancelar", color = c.textSecondary) }
+            }
+        )
+    }
 }
 
 @Composable
@@ -143,97 +173,89 @@ private fun GoalCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val appColors = LocalAppColors.current
-    val sdf = rememberDateFormat("dd/MM/yyyy")
+    val c = LocalAppColors.current
+    val monthYear = rememberDateFormat("MMMM 'de' yyyy")
     val progress = if (goal.targetAmount > 0) (goal.savedAmount / goal.targetAmount).toFloat() else 0f
     val isComplete = progress >= 1f
+    val remaining = (goal.targetAmount - goal.savedAmount).coerceAtLeast(0.0)
     val goalColor = try { Color(android.graphics.Color.parseColor(goal.colorHex)) }
-                    catch (_: Exception) { appColors.primary }
+                    catch (_: Exception) { c.brandPrimary }
+    var menuOpen by remember { mutableStateOf(false) }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(CardTokens.radius),
-        colors = CardDefaults.cardColors(containerColor = DarkCard),
-        elevation = CardDefaults.cardElevation(CardTokens.elevation),
-        border = CardTokens.border
+    val deadlineText = when {
+        goal.deadline == null -> "Sem prazo"
+        else -> "Até ${monthYear.format(Date(goal.deadline))}"
+    }
+    val plan = when {
+        isComplete -> "Meta concluída."
+        goal.deadline == null -> "Faltam ${currency.format(remaining)}."
+        else -> {
+            val months = monthsUntil(goal.deadline)
+            if (months <= 0) "O prazo passou. Faltam ${currency.format(remaining)}."
+            else "Guardar ${currency.format(remaining / months)} por mês para chegar no prazo."
+        }
+    }
+
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.card).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(goalColor.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        if (isComplete) Icons.Default.CheckCircle else Icons.Default.Savings,
-                        null,
-                        tint = if (isComplete) IncomeGreen else goalColor,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(goal.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = OnDarkText)
-                    if (goal.deadline != null) {
-                        Text("Meta: ${sdf.format(Date(goal.deadline))}",
-                            fontSize = 12.sp, color = OnDarkTextSecondary)
-                    }
-                }
-                if (isComplete) {
-                    StatusChip("Concluída", ChipVariant.SUCCESS)
-                }
-                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Edit, "Editar", modifier = Modifier.size(16.dp),
-                        tint = OnDarkTextSecondary.copy(alpha = 0.6f))
-                }
-                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Delete, "Excluir", modifier = Modifier.size(16.dp),
-                        tint = OnDarkTextSecondary.copy(alpha = 0.6f))
-                }
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(goal.name, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = c.textPrimary)
+                Text(deadlineText, fontSize = 13.sp, color = c.textSecondary)
             }
-
-            Spacer(Modifier.height(14.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(currency.format(goal.savedAmount),
-                    fontWeight = FontWeight.Bold, fontSize = 16.sp, color = goalColor)
-                Text("de ${currency.format(goal.targetAmount)}",
-                    fontSize = 13.sp, color = OnDarkTextSecondary)
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            LinearProgressIndicator(
-                progress = { progress.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                color = if (isComplete) IncomeGreen else goalColor,
-                trackColor = DarkSurfaceVariant
+            Text(
+                if (isComplete) "Concluída" else "${(progress * 100).toInt()}%",
+                fontSize = if (isComplete) 14.sp else 22.sp, fontWeight = FontWeight.ExtraBold, color = goalColor
             )
-
-            Spacer(Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("${(progress * 100).toInt()}% atingido",
-                    fontSize = 12.sp, color = OnDarkTextSecondary)
-                if (!isComplete) {
-                    ItemActionButton(
-                        label = "Depositar",
-                        icon = Icons.Default.Add,
-                        onClick = onDeposit
-                    )
+            Box {
+                IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.MoreVert, "Opções da meta", tint = c.textSecondary)
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false },
+                    containerColor = c.surfaceVariant) {
+                    DropdownMenuItem(text = { Text("Editar") }, onClick = { menuOpen = false; onEdit() })
+                    DropdownMenuItem(text = { Text("Excluir", color = c.error) }, onClick = { menuOpen = false; onDelete() })
                 }
             }
         }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(7.dp)).background(c.background)) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f))
+                    .clip(RoundedCornerShape(7.dp)).background(goalColor))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom) {
+                Text(currency.format(goal.savedAmount), fontWeight = FontWeight.Bold, fontSize = 20.sp,
+                    color = c.textPrimary)
+                Text("de ${currency.format(goal.targetAmount)}", fontSize = 13.sp, color = c.textSecondary)
+            }
+        }
+
+        HorizontalDivider(color = c.surfaceVariant)
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(plan, fontSize = 14.sp, lineHeight = 20.sp, color = c.textSecondary, modifier = Modifier.weight(1f))
+            if (!isComplete) {
+                Button(
+                    onClick = onDeposit,
+                    colors = ButtonDefaults.buttonColors(containerColor = c.brandPrimary, contentColor = c.onBrandPrimary),
+                    contentPadding = PaddingValues(horizontal = 18.dp)
+                ) { Text("Guardar", fontWeight = FontWeight.Bold) }
+            }
+        }
     }
+}
+
+/** Meses inteiros entre hoje e o prazo, contando o mês do prazo. */
+private fun monthsUntil(deadline: Long): Int {
+    val now = Calendar.getInstance()
+    val end = Calendar.getInstance().apply { timeInMillis = deadline }
+    if (end.before(now)) return 0
+    val diff = (end.get(Calendar.YEAR) - now.get(Calendar.YEAR)) * 12 + end.get(Calendar.MONTH) - now.get(Calendar.MONTH)
+    return diff.coerceAtLeast(0) + 1
 }
 
 @Composable

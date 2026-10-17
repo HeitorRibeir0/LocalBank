@@ -20,10 +20,13 @@ private fun buildColorScheme(c: AppColors) = darkColorScheme(
     primaryContainer    = c.brandPrimarySurface,
     onPrimaryContainer  = c.brandPrimaryLight,
 
-    secondary           = c.info,
-    onSecondary         = Color.White,
-    secondaryContainer  = Color(0xFF1A3355),
-    onSecondaryContainer = c.info,
+    secondary           = c.accent,
+    onSecondary         = c.background,
+    secondaryContainer  = c.brandPrimarySurface,
+    onSecondaryContainer = c.brandPrimaryLight,
+
+    tertiary            = c.info,
+    onTertiary          = c.background,
 
     background          = c.background,
     onBackground        = c.textPrimary,
@@ -33,13 +36,23 @@ private fun buildColorScheme(c: AppColors) = darkColorScheme(
     surfaceVariant      = c.surfaceVariant,
     onSurfaceVariant    = c.textSecondary,
 
+    // Diálogos, folhas e menus usam os containers — tudo no tom do tema
+    surfaceContainerLowest  = c.background,
+    surfaceContainerLow     = c.surface,
+    surfaceContainer        = c.surface,
+    surfaceContainerHigh    = c.card,
+    surfaceContainerHighest = c.surfaceVariant,
+    surfaceBright           = c.surfaceVariant,
+    surfaceDim              = c.background,
+
     error               = c.error,
-    onError             = Color.White,
-    errorContainer      = Color(0xFF3D1515),
+    onError             = c.background,
+    errorContainer      = c.error.copy(alpha = 0.18f),
     onErrorContainer    = c.error,
 
-    outline             = Color(0xFF3A3A55),
-    outlineVariant      = Color(0xFF2A2A40),
+    outline             = c.textMuted,
+    outlineVariant      = c.surfaceVariant,
+    scrim               = Color.Black,
 
     inverseSurface      = c.textPrimary,
     inverseOnSurface    = c.background,
@@ -48,10 +61,10 @@ private fun buildColorScheme(c: AppColors) = darkColorScheme(
 )
 
 private val Shapes = Shapes(
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(24.dp)
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 // ── Gerenciador de tema ──
@@ -90,8 +103,8 @@ fun LocalBankTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = DarkBg.toArgb()
-            window.navigationBarColor = DarkSurface.toArgb()
+            window.statusBarColor = appColors.background.toArgb()
+            window.navigationBarColor = appColors.surface.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
         }

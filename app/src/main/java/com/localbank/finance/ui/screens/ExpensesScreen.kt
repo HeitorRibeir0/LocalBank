@@ -48,8 +48,6 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     val sdf = rememberDateFormat("dd/MM/yyyy")
 
     val appColors = LocalAppColors.current
-    val snackbarHostState = remember { SnackbarHostState() }
-    var showDialog by remember { mutableStateOf(false) }
     var showDeleteTx by remember { mutableStateOf<Transaction?>(null) }
     var showEditTx by remember { mutableStateOf<Transaction?>(null) }
     var showEditScheduled by remember { mutableStateOf<ScheduledExpense?>(null) }
@@ -74,33 +72,8 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
 
     val categoryNames = remember(categories) { categories.associate { it.id to it.displayName } }
 
-    LaunchedEffect(Unit) {
-        viewModel.budgetAlert.collect { message ->
-            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Long)
-        }
-    }
-
     Scaffold(
-        containerColor = DarkBg,
-        snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = DarkCard,
-                    contentColor = OnDarkText
-                )
-            }
-        },
-        floatingActionButton = {
-            SmallFloatingActionButton(
-                onClick = { showDialog = true },
-                containerColor = appColors.brandPrimaryDark,
-                contentColor = appColors.textPrimary,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Nova despesa")
-            }
-        }
+        containerColor = DarkBg
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
@@ -158,7 +131,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                             )
                             Spacer(Modifier.height(16.dp))
                             Text(
-                                "Nenhuma despesa neste mês.\nToque no + para adicionar.",
+                                "Nenhum lançamento neste mês.\nToque em Lançar para adicionar.",
                                 color = OnDarkTextSecondary,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -216,25 +189,6 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                 }
                 item { Spacer(Modifier.height(80.dp)) }
             }
-    }
-
-    if (showDialog) {
-        AddExpenseDialog(
-            accounts = accounts,
-            categories = categories,
-            onDismiss = { showDialog = false },
-            onAddTransaction = { accountId, categoryId, desc, amount, type ->
-                viewModel.addTransaction(accountId, categoryId, amount, type, desc)
-                showDialog = false
-            },
-            onAddScheduled = { accountId, categoryId, desc, amount, dueDate, isRec, rule ->
-                viewModel.addScheduledExpense(accountId, categoryId, amount, desc, dueDate, isRec, rule)
-                showDialog = false
-            },
-            onAddCategory = { name, colorHex, type ->
-                viewModel.addCategory(name, colorHex, type)
-            }
-        )
     }
 
     showDeleteTx?.let { tx ->
@@ -410,213 +364,6 @@ fun ScheduledCard(
                     tint = c.textSecondary.copy(alpha = 0.5f))
             }
         }
-    }
-}
-
-// ── Dialog unificado com máscara R$ e + categoria ──
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun AddExpenseDialog(
-    accounts: List<Account>,
-    categories: List<Category>,
-    onDismiss: () -> Unit,
-    onAddTransaction: (accountId: String, categoryId: String?, desc: String, amount: Double, type: TransactionType) -> Unit,
-    onAddScheduled: (accountId: String, categoryId: String?, desc: String, amount: Double, dueDate: Long, isRecurring: Boolean, recurrenceRule: RecurrenceRule?) -> Unit,
-    onAddCategory: (name: String, colorHex: String, type: TransactionType) -> Unit
-) {
-    val appColors = LocalAppColors.current
-    var isIncome    by remember { mutableStateOf(false) }
-    var isScheduled by remember { mutableStateOf(false) }
-    var description by remember { mutableStateOf("") }
-    var amountRaw   by remember { mutableStateOf("") }
-    var selectedAccount  by remember { mutableStateOf<Account?>(null) }
-    var selectedCategory by remember { mutableStateOf<Category?>(null) }
-    var showError by remember { mutableStateOf(false) }
-
-    var dueDateText    by remember { mutableStateOf("") }
-    var isRecurring    by remember { mutableStateOf(false) }
-    var recurrenceRule by remember { mutableStateOf(RecurrenceRule.MONTHLY) }
-
-    var showAddCategory by remember { mutableStateOf(false) }
-
-    val sdf = rememberDateFormat("dd/MM/yyyy")
-
-    LaunchedEffect(accounts) {
-        if (selectedAccount == null && accounts.isNotEmpty()) selectedAccount = accounts.first()
-    }
-
-    val currentType = if (isIncome) TransactionType.INCOME else TransactionType.EXPENSE
-    val filteredCategories = categories.filter { it.type == currentType }
-
-    LaunchedEffect(isIncome) { selectedCategory = null }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text("Nova despesa", color = OnDarkText) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Tipo
-                Row {
-                    FilterChip(selected = !isIncome, onClick = { isIncome = false },
-                        label = { Text("Saída") }, modifier = Modifier.padding(end = 8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = ExpenseRed.copy(alpha = 0.2f),
-                            selectedLabelColor = ExpenseRed
-                        ))
-                    FilterChip(selected = isIncome, onClick = { isIncome = true },
-                        label = { Text("Entrada") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = IncomeGreen.copy(alpha = 0.2f),
-                            selectedLabelColor = IncomeGreen
-                        ))
-                }
-
-                // Quando
-                Row {
-                    FilterChip(selected = !isScheduled, onClick = { isScheduled = false },
-                        label = { Text("Agora") }, modifier = Modifier.padding(end = 8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = appColors.primary.copy(alpha = 0.2f),
-                            selectedLabelColor = appColors.primary
-                        ))
-                    FilterChip(selected = isScheduled, onClick = { isScheduled = true },
-                        label = { Text("Agendada") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = appColors.primary.copy(alpha = 0.2f),
-                            selectedLabelColor = appColors.primary
-                        ))
-                }
-
-                DropdownSelector(
-                    label = "Conta", items = accounts, selectedItem = selectedAccount,
-                    onItemSelected = { selectedAccount = it }, itemLabel = { it.name }
-                )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) {
-                        DropdownSelector(
-                            label = "Categoria", items = filteredCategories,
-                            selectedItem = selectedCategory,
-                            onItemSelected = { selectedCategory = it }, itemLabel = { it.displayName },
-                            allowNone = true, noneLabel = "Sem categoria",
-                            onNoneSelected = { selectedCategory = null }, placeholder = "Sem categoria"
-                        )
-                    }
-                    IconButton(onClick = { showAddCategory = true }) {
-                        Icon(Icons.Default.Add, "Adicionar categoria", tint = appColors.primary)
-                    }
-                }
-
-                OutlinedTextField(
-                    value = description, onValueChange = { description = it },
-                    label = { Text("Descrição") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = appColors.primary,
-                        focusedLabelColor = appColors.primary,
-                        cursorColor = appColors.primary
-                    )
-                )
-
-                CurrencyField(
-                    rawValue = amountRaw,
-                    onRawValueChange = { amountRaw = it; showError = false },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                if (isScheduled) {
-                    OutlinedTextField(
-                        value = dueDateText, onValueChange = { dueDateText = it; showError = false },
-                        label = { Text("Vencimento (dd/MM/yyyy)") }, singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = appColors.primary,
-                            focusedLabelColor = appColors.primary,
-                            cursorColor = appColors.primary
-                        )
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = isRecurring, onCheckedChange = { isRecurring = it },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = appColors.primary,
-                                checkmarkColor = appColors.onPrimary
-                            )
-                        )
-                        Text("Recorrente", color = OnDarkText)
-                    }
-                    if (isRecurring) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            RecurrenceRule.entries.forEach { rule ->
-                                FilterChip(
-                                    selected = recurrenceRule == rule,
-                                    onClick = { recurrenceRule = rule },
-                                    label = {
-                                        Text(rule.label, fontSize = 12.sp)
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = appColors.primary.copy(alpha = 0.2f),
-                                        selectedLabelColor = appColors.primary
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (showError) {
-                    Text(
-                        when {
-                            selectedAccount == null -> "Selecione uma conta"
-                            amountRaw.isBlank() -> "Preencha o valor"
-                            isScheduled && dueDateText.isBlank() -> "Preencha a data"
-                            else -> "Verifique os campos"
-                        },
-                        color = ExpenseRed,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val account = selectedAccount
-                val amount = (amountRaw.toLongOrNull() ?: 0) / 100.0
-
-                if (account == null || amount <= 0) {
-                    showError = true
-                    return@TextButton
-                }
-
-                if (isScheduled) {
-                    val dueDate = try { sdf.parse(dueDateText)?.time } catch (_: Exception) { null }
-                    if (dueDate == null) { showError = true; return@TextButton }
-                    onAddScheduled(
-                        account.id, selectedCategory?.id, description, amount,
-                        dueDate, isRecurring, if (isRecurring) recurrenceRule else null
-                    )
-                } else {
-                    onAddTransaction(
-                        account.id, selectedCategory?.id, description, amount, currentType
-                    )
-                }
-            }) { Text("Adicionar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) } }
-    )
-
-    if (showAddCategory) {
-        AddCategoryDialog(
-            type = currentType,
-            onDismiss = { showAddCategory = false },
-            onConfirm = { name, colorHex ->
-                onAddCategory(name, colorHex, currentType)
-                showAddCategory = false
-            }
-        )
     }
 }
 

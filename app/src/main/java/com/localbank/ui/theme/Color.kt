@@ -1,96 +1,35 @@
 package com.localbank.ui.theme
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PALETA BRUTA — valores absolutos, não use diretamente nas telas
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Marca
-private val _Emerald       = Color(0xFF00C9A7)
-private val _EmeraldLight  = Color(0xFF5EEAD4)
-private val _EmeraldDark   = Color(0xFF009B7D)
-private val _EmeraldSurface = Color(0xFF003D32)
-
-private val _Pink          = Color(0xFFE91E8C)
-private val _PinkLight     = Color(0xFFFF6EB4)
-private val _PinkDark      = Color(0xFFB5006A)
-private val _PinkSurface   = Color(0xFF3D0028)
-
-// Superfícies — escuras neutras, mínimo de tinte colorido
-private val _Bg            = Color(0xFF0F0F12)   // fundo geral: quase preto, leve frio
-private val _Surface       = Color(0xFF161620)   // barras de navegação e app bar
-private val _SurfaceVar    = Color(0xFF1E1E2A)   // divisores, trilha de progress bar
-private val _Card          = Color(0xFF1A1A24)   // containers de card
-
-// Semânticas
-private val _Green         = Color(0xFF3CCF9A)   // sucesso / entrada: verde seguro, não neon
-private val _Red           = Color(0xFFE05C5C)   // erro / atraso real: vermelho apagado
-private val _Amber         = Color(0xFFD4963A)   // alerta / atenção: âmbar queimado
-private val _Blue          = Color(0xFF5BA4D4)   // informação: azul acinzentado
-
-// Texto
-private val _TextPrimary   = Color(0xFFF1F1F1)
-private val _TextSecondary = Color(0xFFA0A0B8)
-private val _TextMuted     = Color(0xFF606078)
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ALIASES LEGADOS — mantidos apenas para compatibilidade durante migração
-// Novas telas não devem importar estes. Use LocalAppColors.current.
-// ─────────────────────────────────────────────────────────────────────────────
-
-val DarkBg             = _Bg
-val DarkSurface        = _Surface
-val DarkSurfaceVariant = _SurfaceVar
-val DarkCard           = _Card
-val IncomeGreen        = _Green
-val ExpenseRed         = _Red
-val WarningAmber       = _Amber
-val InfoBlue           = _Blue
-val OnDarkText         = _TextPrimary
-val OnDarkTextSecondary = _TextSecondary
-val AccentBlue         = Color(0xFF4A9DFF)
-val AccentPurple       = Color(0xFF9B72FF)
-val Emerald            = _Emerald
-val EmeraldLight       = _EmeraldLight
-val EmeraldDark        = _EmeraldDark
-val EmeraldSurface     = _EmeraldSurface
-val MeliuzPink         = _Pink
-val MeliuzPinkLight    = _PinkLight
-val MeliuzPinkDark     = _PinkDark
-val MeliuzPinkSurface  = _PinkSurface
-val OnEmerald          = _EmeraldSurface
-val OnMeliuzPink       = Color.White
-val GradientEmeraldStart = _Emerald
-val GradientEmeraldEnd   = _EmeraldDark
-val GradientPinkStart    = _Pink
-val GradientPinkEnd      = _PinkDark
-
-// ─────────────────────────────────────────────────────────────────────────────
 // SISTEMA DE DESIGN — fonte de verdade para todas as telas
 //
-// Papéis e regras de uso:
+// Dois temas com a mesma linguagem: fundo escuro tingido pela cor da marca,
+// uma cor principal e duas de apoio escolhidas para harmonizar com ela.
 //
-//  brandPrimary       → ações principais, FAB, seleção ativa, destaque da marca
-//  brandPrimaryLight  → hover / estado pressionado
-//  brandPrimarySurface→ fundo de chip selecionado, indicador de aba
+//  brandPrimary       → ações principais, botão Lançar, seleção ativa, destaque
+//  brandPrimaryLight  → estado pressionado / hover
+//  brandPrimaryDark   → contêiner de ação secundária
+//  brandPrimarySurface→ fundo de chip selecionado, indicador
 //  onBrandPrimary     → texto/ícone sobre brandPrimary
-//  gradientStart/End  → hero card do dashboard
+//  accent             → cor de apoio (categorias, meta concluída)
+//  gradientStart/End  → amostra do tema no seletor e logo
 //
-//  success   → valores positivos (entradas, metas concluídas, PAGO)
-//  warning   → alertas (orçamento em 80%, vencimento próximo)
-//  error     → erros reais, vencimento ultrapassado, estouro de limite
-//  info      → informações neutras (opcional)
+//  success   → entradas, valores positivos, pago
+//  warning   → atenção (orçamento em 80%)
+//  error     → saídas, vencimento próximo/atrasado, estouro, erros de formulário
+//  info      → informação neutra
 //
 //  background     → tela inteira
-//  surface        → bottom bar, top bar
-//  card           → cartões de conteúdo
-//  surfaceVariant → divisores, trilha de progress bar, fundos secundários
+//  surface        → barras de navegação
+//  card           → grupos de conteúdo
+//  surfaceVariant → divisores, trilhas de progresso, bordas
 //
-//  textPrimary    → títulos, valores, rótulos principais
-//  textSecondary  → subtítulos, datas, labels de apoio
-//  textMuted      → placeholders, informações de baixa ênfase
+//  textPrimary / textSecondary / textMuted → hierarquia de texto
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum class AppThemeType { EMERALD, MELIUZ }
@@ -102,6 +41,7 @@ data class AppColors(
     val brandPrimaryDark: Color,
     val brandPrimarySurface: Color,
     val onBrandPrimary: Color,
+    val accent: Color,
     val gradientStart: Color,
     val gradientEnd: Color,
 
@@ -130,52 +70,86 @@ data class AppColors(
     val onPrimary: Color      get() = onBrandPrimary
 }
 
+// ── Mata (tema verde) ────────────────────────────────────────────────────────
+// Jade como cor principal; oliva (vizinho no círculo) e pêssego (complementar
+// quente) como apoio. Fundo verde-escuro, não preto.
 val EmeraldColors = AppColors(
-    brandPrimary        = _Emerald,
-    brandPrimaryLight   = _EmeraldLight,
-    brandPrimaryDark    = _EmeraldDark,
-    brandPrimarySurface = _EmeraldSurface,
-    onBrandPrimary      = _EmeraldSurface,
-    gradientStart       = Color(0xFF0D2822),   // escuro esmeralda — hero premium, não neon
-    gradientEnd         = Color(0xFF091D18),   // quase preto com toque verde
+    brandPrimary        = Color(0xFF5FD4A0),   // jade
+    brandPrimaryLight   = Color(0xFF8BE5BC),
+    brandPrimaryDark    = Color(0xFF2FA676),
+    brandPrimarySurface = Color(0xFF173D30),
+    onBrandPrimary      = Color(0xFF04281A),
+    accent              = Color(0xFFC9D96F),   // oliva
+    gradientStart       = Color(0xFF5FD4A0),
+    gradientEnd         = Color(0xFF2FA676),
 
-    success         = _Green,
-    warning         = _Amber,
-    error           = _Red,
-    info            = _Blue,
+    success         = Color(0xFF5FD4A0),
+    warning         = Color(0xFFE2C07A),       // areia dourada
+    error           = Color(0xFFF2A07B),       // pêssego
+    info            = Color(0xFF5CC3C9),       // azul-petróleo
 
-    background      = _Bg,
-    surface         = _Surface,
-    card            = _Card,
-    surfaceVariant  = _SurfaceVar,
+    background      = Color(0xFF0F1F1A),
+    surface         = Color(0xFF132822),
+    card            = Color(0xFF17302A),
+    surfaceVariant  = Color(0xFF24443B),
 
-    textPrimary     = _TextPrimary,
-    textSecondary   = _TextSecondary,
-    textMuted       = _TextMuted
+    textPrimary     = Color(0xFFEAF4EF),
+    textSecondary   = Color(0xFFA7C2B7),
+    textMuted       = Color(0xFF86A498)
 )
 
+// ── Méliuz (tema rosa) ───────────────────────────────────────────────────────
+// Rosa como cor principal; lilás (vizinho) e menta (complementar) como apoio.
 val MeliuzColors = AppColors(
-    brandPrimary        = _Pink,
-    brandPrimaryLight   = _PinkLight,
-    brandPrimaryDark    = _PinkDark,
-    brandPrimarySurface = _PinkSurface,
-    onBrandPrimary      = Color.White,
-    gradientStart       = Color(0xFF280D1E),   // escuro rosa — hero premium
-    gradientEnd         = Color(0xFF1A0814),   // quase preto com toque rosa
+    brandPrimary        = Color(0xFFF57AB0),   // rosa
+    brandPrimaryLight   = Color(0xFFFFA3CB),
+    brandPrimaryDark    = Color(0xFFC94A86),
+    brandPrimarySurface = Color(0xFF4A1D35),
+    onBrandPrimary      = Color(0xFF2E0718),
+    accent              = Color(0xFFC9A2F0),   // lilás
+    gradientStart       = Color(0xFFF57AB0),
+    gradientEnd         = Color(0xFFC94A86),
 
-    success         = _Green,
-    warning         = _Amber,
-    error           = _Red,
-    info            = _Blue,
+    success         = Color(0xFF7FD6A8),       // menta
+    warning         = Color(0xFFE8C07A),
+    error           = Color(0xFFF5A86B),       // damasco — distinto do rosa da marca
+    info            = Color(0xFFA7B5F2),
 
-    background      = _Bg,
-    surface         = _Surface,
-    card            = _Card,
-    surfaceVariant  = _SurfaceVar,
+    background      = Color(0xFF1C1018),
+    surface         = Color(0xFF23141E),
+    card            = Color(0xFF2B1925),
+    surfaceVariant  = Color(0xFF43283A),
 
-    textPrimary     = _TextPrimary,
-    textSecondary   = _TextSecondary,
-    textMuted       = _TextMuted
+    textPrimary     = Color(0xFFF6ECF1),
+    textSecondary   = Color(0xFFC9AFBE),
+    textMuted       = Color(0xFFA08797)
 )
 
 val LocalAppColors = compositionLocalOf { EmeraldColors }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ALIASES LEGADOS — leem o tema ativo, então telas antigas seguem o tema
+// escolhido. Novas telas devem usar LocalAppColors.current diretamente.
+// ─────────────────────────────────────────────────────────────────────────────
+
+private val current: AppColors
+    @Composable @ReadOnlyComposable get() = LocalAppColors.current
+
+val DarkBg: Color              @Composable @ReadOnlyComposable get() = current.background
+val DarkSurface: Color         @Composable @ReadOnlyComposable get() = current.surface
+val DarkSurfaceVariant: Color  @Composable @ReadOnlyComposable get() = current.surfaceVariant
+val DarkCard: Color            @Composable @ReadOnlyComposable get() = current.card
+val IncomeGreen: Color         @Composable @ReadOnlyComposable get() = current.success
+val ExpenseRed: Color          @Composable @ReadOnlyComposable get() = current.error
+val WarningAmber: Color        @Composable @ReadOnlyComposable get() = current.warning
+val InfoBlue: Color            @Composable @ReadOnlyComposable get() = current.info
+val OnDarkText: Color          @Composable @ReadOnlyComposable get() = current.textPrimary
+val OnDarkTextSecondary: Color @Composable @ReadOnlyComposable get() = current.textSecondary
+val Emerald: Color             @Composable @ReadOnlyComposable get() = current.brandPrimary
+val OnEmerald: Color           @Composable @ReadOnlyComposable get() = current.onBrandPrimary
+
+// Amostras fixas de cada tema (seletor de tema no perfil)
+val GradientEmeraldStart = EmeraldColors.gradientStart
+val GradientEmeraldEnd   = EmeraldColors.gradientEnd
+val GradientPinkStart    = MeliuzColors.gradientStart
+val GradientPinkEnd      = MeliuzColors.gradientEnd

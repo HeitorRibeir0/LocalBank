@@ -23,17 +23,17 @@ import com.localbank.ui.theme.LocalAppColors
 // ─────────────────────────────────────────────────────────────────────────────
 
 object CardTokens {
-    val radius        = 16.dp   // containers e cards principais
-    val radiusCompact = 12.dp   // itens em lista
-    val radiusChip    = 6.dp    // chips e tags
+    val radius        = 20.dp   // containers e cards principais
+    val radiusCompact = 16.dp   // itens em lista
+    val radiusChip    = 10.dp   // chips e tags
     val elevation     = 0.dp    // flat — toda distinção vem de cor de fundo
     val paddingOuter  = 16.dp   // padding interno de card container
     val paddingInner  = 12.dp   // padding interno de item de lista
     val iconSize      = 40.dp   // ícone de ação/categoria em item
     val iconSizeSmall = 36.dp   // ícone compacto
     val iconRadius    = 10.dp   // canto do ícone
-    // Borda sutil — define o card no fundo escuro sem precisar de sombra
-    val border        = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.07f))
+    // Sem borda: o card se separa do fundo pelo tom (fundo e card são da mesma cor-base)
+    val border: BorderStroke? = null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

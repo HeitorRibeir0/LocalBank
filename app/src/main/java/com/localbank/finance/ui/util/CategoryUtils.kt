@@ -30,17 +30,16 @@ fun normalizeCategoryName(raw: String): String =
  *  - evita vermelho puro e verde puro (reservados para error/success semânticos)
  */
 val CategoryColorPalette = listOf(
-    "#5C9EFF",  // azul suave
-    "#A78BFA",  // violeta
-    "#34D399",  // verde menta
-    "#FB923C",  // laranja
-    "#F472B6",  // rosa
-    "#38BDF8",  // ciano
-    "#FBBF24",  // âmbar
-    "#A3E635",  // verde limão
-    "#E879F9",  // roxo rosa
-    "#2DD4BF",  // turquesa
-    "#F97316",  // laranja escuro
-    "#818CF8",  // índigo
-    "#94A3B8",  // cinza azulado (neutro / outros)
+    "#5CC3C9",  // azul-petróleo
+    "#C9D96F",  // oliva
+    "#E2C98F",  // areia
+    "#F2A07B",  // pêssego
+    "#8FB8E8",  // azul suave
+    "#C9A2F0",  // lilás
+    "#F57AB0",  // rosa
+    "#7FD6A8",  // menta
+    "#E8B86A",  // mel
+    "#9FB7E0",  // azul-acinzentado
+    "#D9A7C7",  // malva
+    "#A7C2B7",  // sálvia (neutro / outros)
 )

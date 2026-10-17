@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -58,6 +59,18 @@ fun MainNavigation(
     var showProfile by rememberSaveable { mutableStateOf(false) }
     var showAccounts by rememberSaveable { mutableStateOf(false) }
 
+    var showAddEntry by rememberSaveable { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val accounts by expenseViewModel.accounts.collectAsState()
+    val categories by expenseViewModel.categories.collectAsState()
+
+    // Alerta de orçamento vale para lançamentos feitos de qualquer aba
+    LaunchedEffect(Unit) {
+        expenseViewModel.budgetAlert.collect { message ->
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Long)
+        }
+    }
+
     // Tablet, dobrável aberto ou paisagem: trilho lateral em vez da barra inferior
     val useRail = LocalConfiguration.current.screenWidthDp >= 600
 
@@ -87,6 +100,23 @@ fun MainNavigation(
     } else {
         Scaffold(
             containerColor = DarkBg,
+            snackbarHost = {
+                SnackbarHost(snackbarHostState) { data ->
+                    Snackbar(snackbarData = data, containerColor = appColors.surfaceVariant,
+                        contentColor = appColors.textPrimary)
+                }
+            },
+            floatingActionButton = {
+                // Lançar é a ação principal do app: disponível em todas as abas
+                ExtendedFloatingActionButton(
+                    onClick = { showAddEntry = true },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Lançar", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                    containerColor = appColors.brandPrimary,
+                    contentColor = appColors.onBrandPrimary,
+                    shape = RoundedCornerShape(28.dp)
+                )
+            },
             topBar = {
                 TopAppBar(
                     title = {
@@ -169,7 +199,11 @@ fun MainNavigation(
                     Box(contentAlignment = Alignment.TopCenter) {
                         Box(Modifier.widthIn(max = MaxContentWidth).fillMaxSize()) {
                             when (selectedScreen) {
-                                Screen.Dashboard -> DashboardScreen(viewModel = dashboardViewModel)
+                                Screen.Dashboard -> DashboardScreen(
+                                    viewModel = dashboardViewModel,
+                                    onPayScheduled = expenseViewModel::payScheduledExpense,
+                                    onOpenReport = { selectedRoute = Screen.Report.route }
+                                )
                                 Screen.Expenses  -> ExpensesScreen(viewModel = expenseViewModel)
                                 Screen.Budget    -> BudgetScreen(viewModel = budgetViewModel)
                                 Screen.Goals     -> SavingsGoalScreen(viewModel = savingsGoalViewModel)
@@ -180,6 +214,23 @@ fun MainNavigation(
                 }
             }
         }
+    }
+
+    if (showAddEntry) {
+        AddEntrySheet(
+            accounts = accounts,
+            categories = categories,
+            onDismiss = { showAddEntry = false },
+            onAddTransaction = { accountId, categoryId, desc, amount, type, date ->
+                expenseViewModel.addTransaction(accountId, categoryId, amount, type, desc, date)
+                showAddEntry = false
+            },
+            onAddScheduled = { accountId, categoryId, desc, amount, dueDate, isRec, rule ->
+                expenseViewModel.addScheduledExpense(accountId, categoryId, amount, desc, dueDate, isRec, rule)
+                showAddEntry = false
+            },
+            onAddCategory = { name, colorHex, type -> expenseViewModel.addCategory(name, colorHex, type) }
+        )
     }
 }
 

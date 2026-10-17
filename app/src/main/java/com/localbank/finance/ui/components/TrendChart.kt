@@ -56,6 +56,7 @@ fun TrendChart(
         if (den != 0.0) num / den else 0.0
     } else 0.0
 
+    val dotFill = DarkCard
     val trendColor = when {
         slope > yMean * 0.05 -> ExpenseRed       // subindo mais de 5%
         slope < -yMean * 0.05 -> IncomeGreen     // caindo mais de 5%
@@ -160,7 +161,7 @@ fun TrendChart(
                     center = Offset(xFor(i), yFor(points[i].value))
                 )
                 drawCircle(
-                    color = DarkCard,
+                    color = dotFill,
                     radius = 3.dp.toPx(),
                     center = Offset(xFor(i), yFor(points[i].value))
                 )
