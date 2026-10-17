@@ -1,11 +1,17 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.util.DateRanges
+import com.localbank.finance.ui.util.rememberCurrencyFormat
+import com.localbank.finance.ui.util.rememberDateFormat
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import com.localbank.finance.ui.util.label
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -38,8 +44,8 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     val scheduled    by viewModel.scheduledExpenses.collectAsState()
     val categories   by viewModel.categories.collectAsState()
     val accounts     by viewModel.accounts.collectAsState()
-    val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
-    val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+    val currency = rememberCurrencyFormat()
+    val sdf = rememberDateFormat("dd/MM/yyyy")
 
     val appColors = LocalAppColors.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -50,25 +56,11 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
 
     // Seletor de mês
     val selectedCal = remember { mutableStateOf(Calendar.getInstance()) }
-    val monthSdf = SimpleDateFormat("MMMM yyyy", Locale("pt", "BR"))
+    val monthSdf = rememberDateFormat("MMMM yyyy")
     val isCurrentMonth = remember(selectedCal.value) {
-        val now = Calendar.getInstance()
-        selectedCal.value.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
-        selectedCal.value.get(Calendar.MONTH) == now.get(Calendar.MONTH)
+        DateRanges.isSameMonth(selectedCal.value, Calendar.getInstance())
     }
-
-    fun monthRange(): Pair<Long, Long> {
-        val c = selectedCal.value.clone() as Calendar
-        c.set(Calendar.DAY_OF_MONTH, 1)
-        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0)
-        c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
-        val from = c.timeInMillis
-        c.set(Calendar.DAY_OF_MONTH, c.getActualMaximum(Calendar.DAY_OF_MONTH))
-        c.set(Calendar.HOUR_OF_DAY, 23); c.set(Calendar.MINUTE, 59); c.set(Calendar.SECOND, 59)
-        return Pair(from, c.timeInMillis)
-    }
-
-    val (monthFrom, monthTo) = remember(selectedCal.value) { monthRange() }
+    val (monthFrom, monthTo) = remember(selectedCal.value) { DateRanges.month(selectedCal.value) }
 
     val filteredTransactions = remember(transactions, monthFrom, monthTo) {
         transactions.filter { it.date in monthFrom..monthTo }
@@ -79,6 +71,8 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     val paidScheduled = remember(scheduled, monthFrom, monthTo) {
         scheduled.filter { it.isPaid && it.dueDate in monthFrom..monthTo }
     }
+
+    val categoryNames = remember(categories) { categories.associate { it.id to it.displayName } }
 
     LaunchedEffect(Unit) {
         viewModel.budgetAlert.collect { message ->
@@ -178,7 +172,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                         Text("Agendadas pendentes", fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp, color = OnDarkText)
                     }
-                    items(pendingScheduled) { expense ->
+                    items(pendingScheduled, key = { "scheduled-${it.id}" }) { expense ->
                         ScheduledCard(
                             expense = expense, currency = currency, sdf = sdf,
                             onPay = { viewModel.payScheduledExpense(expense) },
@@ -194,7 +188,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                         Text("Agendadas pagas", fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp, color = OnDarkTextSecondary)
                     }
-                    items(paidScheduled) { expense ->
+                    items(paidScheduled, key = { "scheduled-${it.id}" }) { expense ->
                         ScheduledCard(
                             expense = expense, currency = currency, sdf = sdf,
                             onPay = {},
@@ -210,10 +204,10 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                         Text("Histórico", fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp, color = OnDarkText)
                     }
-                    items(filteredTransactions) { tx ->
+                    items(filteredTransactions, key = { "tx-${it.id}" }) { tx ->
                         TransactionCard(
                             transaction = tx,
-                            categoryName = categories.find { it.id == tx.categoryId }?.displayName,
+                            categoryName = tx.categoryId?.let { categoryNames[it] },
                             currency = currency, sdf = sdf,
                             onDelete = { showDeleteTx = tx },
                             onEdit = { showEditTx = tx }
@@ -420,6 +414,7 @@ fun ScheduledCard(
 }
 
 // ── Dialog unificado com máscara R$ e + categoria ──
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AddExpenseDialog(
     accounts: List<Account>,
@@ -444,7 +439,7 @@ fun AddExpenseDialog(
 
     var showAddCategory by remember { mutableStateOf(false) }
 
-    val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+    val sdf = rememberDateFormat("dd/MM/yyyy")
 
     LaunchedEffect(accounts) {
         if (selectedAccount == null && accounts.isNotEmpty()) selectedAccount = accounts.first()
@@ -460,7 +455,9 @@ fun AddExpenseDialog(
         containerColor = DarkCard,
         title = { Text("Nova despesa", color = OnDarkText) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // Tipo
                 Row {
                     FilterChip(selected = !isIncome, onClick = { isIncome = false },
@@ -552,14 +549,13 @@ fun AddExpenseDialog(
                         Text("Recorrente", color = OnDarkText)
                     }
                     if (isRecurring) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             RecurrenceRule.entries.forEach { rule ->
                                 FilterChip(
                                     selected = recurrenceRule == rule,
                                     onClick = { recurrenceRule = rule },
                                     label = {
-                                        Text(rule.name.lowercase().replaceFirstChar { it.uppercase() },
-                                            fontSize = 12.sp)
+                                        Text(rule.label, fontSize = 12.sp)
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = appColors.primary.copy(alpha = 0.2f),
@@ -643,7 +639,9 @@ fun AddCategoryDialog(
         containerColor = DarkCard,
         title = { Text("Nova categoria (${if (type == TransactionType.INCOME) "entrada" else "saída"})", color = OnDarkText) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it; showError = false },
                     label = { Text("Nome") }, singleLine = true,
@@ -690,6 +688,7 @@ fun AddCategoryDialog(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EditScheduledDialog(
     expense: ScheduledExpense,
@@ -699,7 +698,7 @@ fun EditScheduledDialog(
     onConfirm: (ScheduledExpense) -> Unit
 ) {
     val appColors = LocalAppColors.current
-    val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+    val sdf = rememberDateFormat("dd/MM/yyyy")
 
     var description by remember { mutableStateOf(expense.description) }
     var amountRaw by remember { mutableStateOf((expense.amount * 100).toLong().toString()) }
@@ -715,7 +714,9 @@ fun EditScheduledDialog(
         containerColor = DarkCard,
         title = { Text("Editar agendada", color = OnDarkText, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 DropdownSelector(
                     label = "Conta", items = accounts, selectedItem = selectedAccount,
                     onItemSelected = { selectedAccount = it }, itemLabel = { it.name }
@@ -770,12 +771,12 @@ fun EditScheduledDialog(
                 }
 
                 if (isRecurring) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         RecurrenceRule.entries.forEach { rule ->
                             FilterChip(
                                 selected = recurrenceRule == rule,
                                 onClick = { recurrenceRule = rule },
-                                label = { Text(rule.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp) },
+                                label = { Text(rule.label, fontSize = 12.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = appColors.primary.copy(alpha = 0.2f),
                                     selectedLabelColor = appColors.primary
@@ -823,7 +824,7 @@ fun EditTransactionDialog(
     onConfirm: (Transaction) -> Unit
 ) {
     val appColors = LocalAppColors.current
-    val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    val currency = rememberCurrencyFormat()
 
     var description by remember { mutableStateOf(transaction.description) }
     var amountRaw by remember {
@@ -839,7 +840,9 @@ fun EditTransactionDialog(
         containerColor = DarkCard,
         title = { Text("Editar transação", color = OnDarkText, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // Tipo: Entrada / Saída
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(

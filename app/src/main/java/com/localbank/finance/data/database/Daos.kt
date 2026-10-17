@@ -43,6 +43,27 @@ interface AccountDao {
     @Query("UPDATE accounts SET balance = 0")
     suspend fun resetAllBalances()
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(accounts: List<Account>)
+
+    // Saldo = soma das transações da conta. Recalcular em vez de aplicar deltas
+    // evita divergência quando edições/remoções chegam de outro aparelho.
+    @Query("""
+        UPDATE accounts SET balance = (
+            SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE -amount END), 0.0)
+            FROM transactions WHERE transactions.accountId = accounts.id
+        ) WHERE id = :accountId
+    """)
+    suspend fun recalculateBalance(accountId: String)
+
+    @Query("""
+        UPDATE accounts SET balance = (
+            SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE -amount END), 0.0)
+            FROM transactions WHERE transactions.accountId = accounts.id
+        )
+    """)
+    suspend fun recalculateAllBalances()
+
     // Upsert que preserva o saldo local se a conta já existir
     @Query("""
         INSERT OR IGNORE INTO accounts (id, name, type, balance, currency, createdAt)
@@ -52,6 +73,9 @@ interface AccountDao {
 
     @Query("UPDATE accounts SET name = :name, type = :type, currency = :currency WHERE id = :id")
     suspend fun updateMetaOnly(id: String, name: String, type: String, currency: String)
+
+    @Query("SELECT id FROM accounts")
+    suspend fun getAllIds(): List<String>
 }
 
 // ─────────────────────────────────────────────
@@ -69,6 +93,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getById(id: String): Category?
 
+    @Query("SELECT * FROM categories")
+    suspend fun getAllOnce(): List<Category>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(category: Category): Long
 
@@ -80,6 +107,21 @@ interface CategoryDao {
 
     @Query("DELETE FROM categories")
     suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(categories: List<Category>)
+
+    // Para dados vindos do Firestore: REPLACE apaga a linha antes de reinserir,
+    // o que dispara ON DELETE (budgets CASCADE, transactions SET NULL).
+    // Insert-ignore + update preserva os filhos.
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertOrIgnore(categories: List<Category>)
+
+    @Update
+    suspend fun updateAll(categories: List<Category>)
+
+    @Query("SELECT id FROM categories")
+    suspend fun getAllIds(): List<String>
 }
 
 // ─────────────────────────────────────────────
@@ -139,6 +181,9 @@ interface TransactionDao {
 
     @Query("DELETE FROM transactions")
     suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(transactions: List<TransactionEntity>)
 }
 
 // ─────────────────────────────────────────────
@@ -149,6 +194,9 @@ interface ScheduledExpenseDao {
 
     @Query("SELECT * FROM scheduled_expenses ORDER BY dueDate ASC")
     fun getAllScheduled(): Flow<List<ScheduledExpense>>
+
+    @Query("SELECT * FROM scheduled_expenses")
+    suspend fun getAllOnce(): List<ScheduledExpense>
 
     @Query("""
         SELECT * FROM scheduled_expenses
@@ -181,6 +229,9 @@ interface ScheduledExpenseDao {
 
     @Query("DELETE FROM scheduled_expenses")
     suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(expenses: List<ScheduledExpense>)
 }
 
 // ─────────────────────────────────────────────
@@ -192,8 +243,14 @@ interface BudgetDao {
     @Query("SELECT * FROM budgets WHERE monthYear = :monthYear ORDER BY limitAmount DESC")
     fun getByMonth(monthYear: String): Flow<List<Budget>>
 
+    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear")
+    suspend fun getByMonthOnce(monthYear: String): List<Budget>
+
     @Query("SELECT * FROM budgets ORDER BY monthYear DESC, limitAmount DESC")
     fun getAllBudgets(): Flow<List<Budget>>
+
+    @Query("SELECT * FROM budgets")
+    suspend fun getAllOnce(): List<Budget>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(budget: Budget): Long
@@ -206,6 +263,9 @@ interface BudgetDao {
 
     @Query("DELETE FROM budgets")
     suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(budgets: List<Budget>)
 }
 
 // ─────────────────────────────────────────────
@@ -225,4 +285,28 @@ interface SavingsGoalDao {
 
     @Delete
     suspend fun delete(goal: SavingsGoal)
+
+    @Query("SELECT * FROM savings_goals WHERE id = :id")
+    suspend fun getById(id: String): SavingsGoal?
+
+    @Query("SELECT * FROM savings_goals")
+    suspend fun getAllOnce(): List<SavingsGoal>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(goals: List<SavingsGoal>)
+
+    @Query("DELETE FROM savings_goals")
+    suspend fun deleteAll()
+
+    // Depósito relativo: não depende de um savedAmount possivelmente desatualizado na UI
+    @Query("UPDATE savings_goals SET savedAmount = MIN(savedAmount + :amount, targetAmount) WHERE id = :id")
+    suspend fun addToSaved(id: String, amount: Double)
+
+    // Edição sem tocar no valor guardado (que pode ter mudado por depósito do outro aparelho)
+    @Query("""
+        UPDATE savings_goals
+        SET name = :name, targetAmount = :targetAmount, colorHex = :colorHex, deadline = :deadline
+        WHERE id = :id
+    """)
+    suspend fun updateMeta(id: String, name: String, targetAmount: Double, colorHex: String, deadline: Long?)
 }

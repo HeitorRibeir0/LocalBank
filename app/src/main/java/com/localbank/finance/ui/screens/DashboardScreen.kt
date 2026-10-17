@@ -1,5 +1,7 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.ui.util.rememberCurrencyFormat
+import com.localbank.finance.ui.util.rememberDateFormat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -38,7 +40,7 @@ import java.util.*
 fun DashboardScreen(viewModel: DashboardViewModel) {
     val state by viewModel.uiState.collectAsState()
     val c = LocalAppColors.current
-    val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    val currency = rememberCurrencyFormat()
     val isPositive = state.balance >= 0
 
     LazyColumn(
@@ -139,10 +141,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
         }
 
         // ── 2. ALERTAS — só aparece se há algo urgente ───────────────────────
-        val urgentExpenses = state.upcomingExpenses.filter {
-            val daysLeft = ((it.dueDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
-            daysLeft <= 3
-        }
+        val urgentExpenses = state.urgentExpenses
         if (urgentExpenses.isNotEmpty()) {
             item {
                 Column(
@@ -158,10 +157,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
         }
 
         // ── 3. PRÓXIMOS VENCIMENTOS (não urgentes) ───────────────────────────
-        val normalUpcoming = state.upcomingExpenses.filter { expense ->
-            val daysLeft = ((expense.dueDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
-            daysLeft > 3
-        }
+        val normalUpcoming = state.upcomingExpenses
         if (normalUpcoming.isNotEmpty()) {
             item {
                 Column(
@@ -310,7 +306,7 @@ private fun AlertCard(expense: ScheduledExpense, currency: NumberFormat, colors:
 @Composable
 fun UpcomingExpenseCard(expense: ScheduledExpense, currency: NumberFormat) {
     val c = LocalAppColors.current
-    val sdf = SimpleDateFormat("dd/MM", Locale("pt", "BR"))
+    val sdf = rememberDateFormat("dd/MM")
     val daysLeft = ((expense.dueDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
     val accentColor = if (daysLeft <= 7) c.warning else c.textSecondary
 
@@ -351,7 +347,7 @@ fun UpcomingExpenseCard(expense: ScheduledExpense, currency: NumberFormat) {
 @Composable
 fun TransactionItem(transaction: Transaction, currency: NumberFormat) {
     val c = LocalAppColors.current
-    val sdf = SimpleDateFormat("dd/MM", Locale("pt", "BR"))
+    val sdf = rememberDateFormat("dd/MM")
     val isIncome = transaction.type == TransactionType.INCOME
     val amountColor = if (isIncome) c.success else c.textPrimary
 

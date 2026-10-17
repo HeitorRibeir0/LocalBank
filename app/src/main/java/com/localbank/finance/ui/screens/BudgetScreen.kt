@@ -1,7 +1,10 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.ui.util.rememberCurrencyFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,7 +32,7 @@ import java.util.*
 fun BudgetScreen(viewModel: BudgetViewModel) {
     val state by viewModel.uiState.collectAsState()
     val appColors = LocalAppColors.current
-    val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    val currency = rememberCurrencyFormat()
     var showDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -62,7 +65,7 @@ fun BudgetScreen(viewModel: BudgetViewModel) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item { Text("Orçamentos do mês", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = OnDarkText) }
-                items(state.budgets) { item ->
+                items(state.budgets, key = { it.budget.id }) { item ->
                     BudgetCard(item, currency) { viewModel.deleteBudget(item.budget) }
                 }
                 item { Spacer(Modifier.height(80.dp)) }
@@ -148,7 +151,9 @@ fun AddBudgetDialog(
         containerColor = DarkCard,
         title = { Text("Novo orçamento", color = OnDarkText) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 DropdownSelector(
                     label = "Categoria", items = categories, selectedItem = selected,
                     onItemSelected = { selected = it; showError = false }, itemLabel = { it.name }

@@ -1,5 +1,6 @@
 package com.localbank.finance.ui.components
 
+import com.localbank.finance.ui.util.rememberCurrencyFormat
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -35,7 +36,7 @@ fun TrendChart(
 ) {
     if (points.isEmpty() || points.all { it.value == 0.0 }) return
 
-    val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    val currency = rememberCurrencyFormat()
     val maxValue = points.maxOf { it.value }.takeIf { it > 0 } ?: return
     val minValue = points.minOf { it.value }
 

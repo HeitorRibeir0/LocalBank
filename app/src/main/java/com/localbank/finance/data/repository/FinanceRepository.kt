@@ -4,7 +4,6 @@ import com.localbank.finance.data.database.*
 import com.localbank.finance.data.model.*
 import com.localbank.finance.sync.FirestoreSyncManager
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 
 class FinanceRepository(
     private val accountDao: AccountDao,
@@ -82,54 +81,27 @@ class FinanceRepository(
 
     suspend fun insertTransaction(transaction: Transaction) {
         transactionDao.insert(transaction)
-        val delta = when (transaction.type) {
-            TransactionType.INCOME  ->  transaction.amount
-            TransactionType.EXPENSE -> -transaction.amount
-        }
-        accountDao.updateBalance(transaction.accountId, delta)
         syncPush { it.pushTransaction(householdId!!, transaction) }
-        // Sincroniza o saldo atualizado da conta para o Firestore
-        accountDao.getById(transaction.accountId)?.let { updated ->
-            syncPush { it.pushAccount(householdId!!, updated) }
-        }
+        refreshBalances(transaction.accountId)
     }
 
     suspend fun updateTransaction(old: Transaction, new: Transaction) {
-        // Reverte o efeito da transação antiga no saldo
-        val reverseOld = when (old.type) {
-            TransactionType.INCOME  -> -old.amount
-            TransactionType.EXPENSE ->  old.amount
-        }
-        // Aplica o efeito da nova transação no saldo
-        val applyNew = when (new.type) {
-            TransactionType.INCOME  ->  new.amount
-            TransactionType.EXPENSE -> -new.amount
-        }
-
-        if (old.accountId != new.accountId) {
-            accountDao.updateBalance(old.accountId, reverseOld)
-            accountDao.updateBalance(new.accountId, applyNew)
-            accountDao.getById(old.accountId)?.let { acc -> syncPush { it.pushAccount(householdId!!, acc) } }
-        } else {
-            accountDao.updateBalance(old.accountId, reverseOld + applyNew)
-        }
-
         transactionDao.insert(new)
         syncPush { it.pushTransaction(householdId!!, new) }
-        accountDao.getById(new.accountId)?.let { acc -> syncPush { it.pushAccount(householdId!!, acc) } }
+        refreshBalances(old.accountId, new.accountId)
     }
 
     suspend fun deleteTransaction(transaction: Transaction) {
         transactionDao.delete(transaction)
-        val delta = when (transaction.type) {
-            TransactionType.INCOME  -> -transaction.amount
-            TransactionType.EXPENSE ->  transaction.amount
-        }
-        accountDao.updateBalance(transaction.accountId, delta)
         syncPush { it.deleteRemote(householdId!!, "transactions", transaction.id) }
-        // Sincroniza o saldo atualizado da conta para o Firestore
-        accountDao.getById(transaction.accountId)?.let { updated ->
-            syncPush { it.pushAccount(householdId!!, updated) }
+        refreshBalances(transaction.accountId)
+    }
+
+    /** Recalcula o saldo das contas afetadas e publica o valor atualizado. */
+    private suspend fun refreshBalances(vararg accountIds: String) {
+        accountIds.distinct().forEach { id ->
+            accountDao.recalculateBalance(id)
+            accountDao.getById(id)?.let { acc -> syncPush { it.pushAccount(householdId!!, acc) } }
         }
     }
 
@@ -204,7 +176,7 @@ class FinanceRepository(
         budgetDao.getByMonth(monthYear)
 
     suspend fun getBudgetForCategory(categoryId: String, monthYear: String): Budget? =
-        budgetDao.getByMonth(monthYear).first().find { it.categoryId == categoryId }
+        budgetDao.getByMonthOnce(monthYear).find { it.categoryId == categoryId }
 
     suspend fun getSpentForCategory(categoryId: String, from: Long, to: Long): Double =
         transactionDao.getTotalExpenseByCategory(categoryId, from, to)
@@ -234,14 +206,29 @@ class FinanceRepository(
     fun getAllSavingsGoals(): Flow<List<SavingsGoal>> =
         savingsGoalDao!!.getAll()
 
-    suspend fun insertSavingsGoal(goal: SavingsGoal) =
+    suspend fun insertSavingsGoal(goal: SavingsGoal) {
         savingsGoalDao!!.insert(goal)
+        syncPush { it.pushSavingsGoal(householdId!!, goal) }
+    }
 
-    suspend fun updateSavingsGoal(goal: SavingsGoal) =
-        savingsGoalDao!!.update(goal)
+    /** Atualiza nome, alvo, cor e prazo — o valor guardado só muda por [depositToGoal]. */
+    suspend fun updateSavingsGoalMeta(goal: SavingsGoal) {
+        savingsGoalDao!!.updateMeta(goal.id, goal.name, goal.targetAmount, goal.colorHex, goal.deadline)
+        syncPush { it.pushSavingsGoalMeta(householdId!!, goal) }
+    }
 
-    suspend fun deleteSavingsGoal(goal: SavingsGoal) =
+    suspend fun depositToGoal(goalId: String, amount: Double) {
+        val dao = savingsGoalDao!!
+        val before = dao.getById(goalId)?.savedAmount ?: return
+        dao.addToSaved(goalId, amount)
+        val applied = (dao.getById(goalId)?.savedAmount ?: before) - before
+        if (applied > 0) syncPush { it.incrementGoalSaved(householdId!!, goalId, applied) }
+    }
+
+    suspend fun deleteSavingsGoal(goal: SavingsGoal) {
         savingsGoalDao!!.delete(goal)
+        syncPush { it.deleteRemote(householdId!!, "savings_goals", goal.id) }
+    }
 
     // ─────────────────────────────────────────────
     // Sync helper

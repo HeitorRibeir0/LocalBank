@@ -25,7 +25,8 @@ import java.util.UUID
     indices = [
         Index("accountId"),
         Index("categoryId"),
-        Index("scheduledId")
+        Index("scheduledId"),
+        Index("date")
     ]
 )
 data class Transaction(

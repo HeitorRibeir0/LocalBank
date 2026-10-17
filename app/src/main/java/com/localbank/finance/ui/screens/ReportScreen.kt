@@ -1,5 +1,7 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.ui.util.rememberCurrencyFormat
+import com.localbank.finance.ui.util.rememberDateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,9 +40,9 @@ import java.util.*
 fun ReportScreen(viewModel: ReportViewModel) {
     val state by viewModel.uiState.collectAsState()
     val selectedMonth by viewModel.selectedMonth.collectAsState()
-    val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    val currency = rememberCurrencyFormat()
     val appColors = LocalAppColors.current
-    val monthSdf = SimpleDateFormat("MMMM yyyy", Locale("pt", "BR"))
+    val monthSdf = rememberDateFormat("MMMM yyyy")
     val isCurrentMonth = viewModel.isCurrentMonth()
 
     LazyColumn(

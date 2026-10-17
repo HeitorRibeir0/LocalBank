@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -21,7 +22,7 @@ import java.util.UUID
         Budget::class,
         SavingsGoal::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -35,6 +36,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun savingsGoalDao(): SavingsGoalDao
 
     companion object {
+        // Índice em transactions.date — todas as telas ordenam/filtram por data
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_date` ON `transactions` (`date`)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -49,6 +57,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "finance_secure_db"
                 )
                     .openHelperFactory(factory)
+                    .addMigrations(MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .addCallback(prepopulateCallback)
                     .build()

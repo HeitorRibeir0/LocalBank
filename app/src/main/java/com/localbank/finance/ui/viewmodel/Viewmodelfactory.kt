@@ -9,9 +9,6 @@ class ViewModelFactory(private val repository: FinanceRepository) : ViewModelPro
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
-            modelClass.isAssignableFrom(BalanceViewModel::class.java) ->
-                BalanceViewModel(repository) as T
-
             modelClass.isAssignableFrom(ExpenseViewModel::class.java) ->
                 ExpenseViewModel(repository) as T
 

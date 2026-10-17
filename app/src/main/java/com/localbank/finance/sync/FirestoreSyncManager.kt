@@ -1,20 +1,22 @@
 package com.localbank.finance.sync
 
+import android.util.Log
+import androidx.room.withTransaction
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentChange
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
-import com.localbank.finance.data.database.AccountDao
-import com.localbank.finance.data.database.BudgetDao
-import com.localbank.finance.data.database.CategoryDao
-import com.localbank.finance.data.database.ScheduledExpenseDao
-import com.localbank.finance.data.database.TransactionDao
+import com.google.firebase.firestore.SetOptions
+import com.localbank.finance.data.database.AppDatabase
 import com.localbank.finance.data.model.Account
 import com.localbank.finance.data.model.AccountType
 import com.localbank.finance.data.model.Budget
 import com.localbank.finance.data.model.Category
 import com.localbank.finance.data.model.RecurrenceRule
+import com.localbank.finance.data.model.SavingsGoal
 import com.localbank.finance.data.model.ScheduledExpense
 import com.localbank.finance.data.model.TransactionType
 import com.localbank.finance.data.model.Transaction as AppTransaction
@@ -22,26 +24,59 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 /**
  * Sincronização bidirecional Room ↔ Firestore.
+ *
+ * Mudanças remotas entram numa fila única e cada snapshot é aplicado numa
+ * transação do Room: a UI recebe uma emissão por lote, não uma por documento.
  */
-class FirestoreSyncManager(
-    private val accountDao: AccountDao,
-    private val categoryDao: CategoryDao,
-    private val transactionDao: TransactionDao,
-    private val scheduledExpenseDao: ScheduledExpenseDao,
-    private val budgetDao: BudgetDao
-) {
+class FirestoreSyncManager(private val database: AppDatabase) {
+
+    private val accountDao = database.accountDao()
+    private val categoryDao = database.categoryDao()
+    private val transactionDao = database.transactionDao()
+    private val scheduledExpenseDao = database.scheduledExpenseDao()
+    private val budgetDao = database.budgetDao()
+    private val savingsGoalDao = database.savingsGoalDao()
+
     private val db = FirebaseFirestore.getInstance()
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        android.util.Log.e("FirestoreSyncManager", "Sync error: ${throwable.message}")
+        Log.e(TAG, "Sync error: ${throwable.message}", throwable)
     }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + exceptionHandler)
     private val listeners = mutableListOf<ListenerRegistration>()
+
+    /** Mudanças de um snapshot de uma coleção. */
+    private data class RemoteBatch(
+        val collection: String,
+        val upserts: List<DocumentSnapshot>,
+        val removals: List<DocumentSnapshot>,
+        val attempt: Int = 0
+    )
+
+    private val inbox = Channel<RemoteBatch>(Channel.UNLIMITED)
+
+    init {
+        // Consumidor único: preserva a ordem e evita corrida entre lotes
+        scope.launch {
+            for (batch in inbox) {
+                try {
+                    applyBatch(batch)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Falha ao aplicar ${batch.collection}: ${e.message}", e)
+                }
+            }
+        }
+    }
 
     private fun householdRef(householdId: String) =
         db.collection("households").document(householdId)
@@ -75,6 +110,30 @@ class FirestoreSyncManager(
             .document(budget.id).set(budgetToMap(budget))
     }
 
+    fun pushSavingsGoal(householdId: String, goal: SavingsGoal) {
+        householdRef(householdId).collection(GOALS)
+            .document(goal.id).set(goalToMap(goal))
+    }
+
+    // merge só com os campos editáveis: não sobrescreve savedAmount
+    fun pushSavingsGoalMeta(householdId: String, goal: SavingsGoal) {
+        householdRef(householdId).collection(GOALS).document(goal.id).set(
+            mapOf(
+                "name" to goal.name, "targetAmount" to goal.targetAmount,
+                "colorHex" to goal.colorHex, "deadline" to goal.deadline
+            ),
+            SetOptions.merge()
+        )
+    }
+
+    // Incremento atômico no servidor: depósitos simultâneos nos dois aparelhos somam
+    fun incrementGoalSaved(householdId: String, goalId: String, amount: Double) {
+        householdRef(householdId).collection(GOALS).document(goalId).set(
+            mapOf("savedAmount" to FieldValue.increment(amount)),
+            SetOptions.merge()
+        )
+    }
+
     fun deleteRemote(householdId: String, collection: String, docId: String) {
         householdRef(householdId).collection(collection).document(docId).delete()
     }
@@ -83,7 +142,7 @@ class FirestoreSyncManager(
     private suspend fun deleteCollection(ref: CollectionReference) {
         val docs = ref.get().await().documents
         if (docs.isEmpty()) return
-        docs.chunked(499).forEach { chunk ->
+        docs.chunked(MAX_BATCH_OPS).forEach { chunk ->
             val batch = db.batch()
             chunk.forEach { batch.delete(it.reference) }
             batch.commit().await()
@@ -93,59 +152,69 @@ class FirestoreSyncManager(
     // Apaga transações, agendamentos e orçamentos + zera saldos das contas
     suspend fun deleteHistoryRemote(householdId: String) {
         val ref = householdRef(householdId)
-        deleteCollection(ref.collection("transactions"))
-        deleteCollection(ref.collection("scheduled_expenses"))
-        deleteCollection(ref.collection("budgets"))
-        val accounts = ref.collection("accounts").get().await().documents
-        if (accounts.isNotEmpty()) {
+        deleteCollection(ref.collection(TRANSACTIONS))
+        deleteCollection(ref.collection(SCHEDULED))
+        deleteCollection(ref.collection(BUDGETS))
+        val accounts = ref.collection(ACCOUNTS).get().await().documents
+        accounts.chunked(MAX_BATCH_OPS).forEach { chunk ->
             val batch = db.batch()
-            accounts.forEach { batch.update(it.reference, "balance", 0.0) }
+            chunk.forEach { batch.update(it.reference, "balance", 0.0) }
             batch.commit().await()
         }
     }
 
     // Recalcula todos os saldos a partir das transações salvas localmente.
-    // Chame isso ao iniciar o app para corrigir divergências de saldo entre devices.
-    suspend fun recalculateAllBalances() {
-        val accounts = accountDao.getAllOnce()
-        accounts.forEach { account ->
-            val net = transactionDao.getNetForAccount(account.id)
-            accountDao.update(account.copy(balance = net))
-        }
-    }
+    suspend fun recalculateAllBalances() = accountDao.recalculateAllBalances()
 
     // Apaga tudo: histórico + contas + categorias
     suspend fun deleteAllRemote(householdId: String) {
         val ref = householdRef(householdId)
-        deleteCollection(ref.collection("transactions"))
-        deleteCollection(ref.collection("scheduled_expenses"))
-        deleteCollection(ref.collection("budgets"))
-        deleteCollection(ref.collection("accounts"))
-        deleteCollection(ref.collection("categories"))
+        deleteCollection(ref.collection(TRANSACTIONS))
+        deleteCollection(ref.collection(SCHEDULED))
+        deleteCollection(ref.collection(BUDGETS))
+        deleteCollection(ref.collection(ACCOUNTS))
+        deleteCollection(ref.collection(CATEGORIES))
+        deleteCollection(ref.collection(GOALS))
     }
 
     // ─────────────────────────────────────────────
-    // UPLOAD INICIAL — Room → Firestore (batch)
+    // UPLOAD INICIAL — Room → Firestore
     // ─────────────────────────────────────────────
 
-    suspend fun uploadAll(
-        householdId: String,
-        accounts: List<Account>,
-        categories: List<Category>,
-        transactions: List<AppTransaction>,
-        scheduledExpenses: List<ScheduledExpense>,
-        budgets: List<Budget>
-    ) {
-        val batch = db.batch()
+    /**
+     * Envia todos os dados locais em lotes de até [MAX_BATCH_OPS] (o limite do Firestore é 500).
+     * Não espera o servidor: offline, o SDK guarda os writes e envia quando a rede voltar.
+     * [onComplete] recebe true quando todos os lotes forem confirmados.
+     */
+    suspend fun uploadAll(householdId: String, onComplete: (Boolean) -> Unit = {}) {
         val ref = householdRef(householdId)
+        val writes = buildList<Pair<DocumentReference, Map<String, Any?>>> {
+            accountDao.getAllOnce().forEach { add(ref.collection(ACCOUNTS).document(it.id) to accountToMap(it)) }
+            categoryDao.getAllOnce().forEach { add(ref.collection(CATEGORIES).document(it.id) to categoryToMap(it)) }
+            transactionDao.getAllOnce().forEach { add(ref.collection(TRANSACTIONS).document(it.id) to transactionToMap(it)) }
+            scheduledExpenseDao.getAllOnce().forEach { add(ref.collection(SCHEDULED).document(it.id) to scheduledToMap(it)) }
+            budgetDao.getAllOnce().forEach { add(ref.collection(BUDGETS).document(it.id) to budgetToMap(it)) }
+            savingsGoalDao.getAllOnce().forEach { add(ref.collection(GOALS).document(it.id) to goalToMap(it)) }
+        }
+        val chunks = writes.chunked(MAX_BATCH_OPS)
+        if (chunks.isEmpty()) { onComplete(true); return }
 
-        accounts.forEach { batch.set(ref.collection("accounts").document(it.id), accountToMap(it)) }
-        categories.forEach { batch.set(ref.collection("categories").document(it.id), categoryToMap(it)) }
-        transactions.forEach { batch.set(ref.collection("transactions").document(it.id), transactionToMap(it)) }
-        scheduledExpenses.forEach { batch.set(ref.collection("scheduled_expenses").document(it.id), scheduledToMap(it)) }
-        budgets.forEach { batch.set(ref.collection("budgets").document(it.id), budgetToMap(it)) }
-
-        batch.commit().await()
+        val lock = Any()
+        var pending = chunks.size
+        var failed = false
+        chunks.forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { (doc, data) -> batch.set(doc, data) }
+            batch.commit().addOnCompleteListener { task ->
+                synchronized(lock) {
+                    if (!task.isSuccessful) {
+                        failed = true
+                        Log.w(TAG, "Upload parcial falhou: ${task.exception?.message}")
+                    }
+                    if (--pending == 0) onComplete(!failed)
+                }
+            }
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -153,70 +222,51 @@ class FirestoreSyncManager(
     // ─────────────────────────────────────────────
 
     /**
-     * Limpa TODOS os dados locais e baixa tudo do Firestore.
-     * Respeita a ordem de FK: primeiro deleta filhos, depois pais.
-     * Depois insere pais primeiro, filhos depois.
+     * Substitui os dados locais pelos do Firestore.
+     * Baixa as coleções em paralelo e só apaga o local depois que o download terminou,
+     * tudo numa única transação (se falhar no meio, nada muda).
      */
     suspend fun clearAndDownload(householdId: String) {
-        // 1) Limpar na ordem correta (filhos antes dos pais)
-        transactionDao.deleteAll()
-        scheduledExpenseDao.deleteAll()
-        budgetDao.deleteAll()
-        categoryDao.deleteAll()
-        accountDao.deleteAll()
-
-        // 2) Baixar na ordem correta (pais antes dos filhos)
         val ref = householdRef(householdId)
+        val docs = coroutineScope {
+            listOf(ACCOUNTS, CATEGORIES, TRANSACTIONS, SCHEDULED, BUDGETS, GOALS)
+                .map { name -> async { ref.collection(name).get().await().documents } }
+                .map { it.await() }
+        }
+        val (accountDocs, categoryDocs, txDocs, scheduledDocs, budgetDocs) = docs
+        val goals = docs[5].mapNotNull(::mapToGoal)
 
-        ref.collection("accounts").get().await().documents.forEach { doc ->
-            mapToAccount(doc)?.let { accountDao.insert(it) }
-        }
-        ref.collection("categories").get().await().documents.forEach { doc ->
-            mapToCategory(doc)?.let { categoryDao.insert(it) }
-        }
-        ref.collection("transactions").get().await().documents.forEach { doc ->
-            mapToTransaction(doc)?.let {
-                try { transactionDao.insert(it) } catch (_: Exception) { }
-            }
-        }
-        ref.collection("scheduled_expenses").get().await().documents.forEach { doc ->
-            mapToScheduled(doc)?.let {
-                try { scheduledExpenseDao.insert(it) } catch (_: Exception) { }
-            }
-        }
-        ref.collection("budgets").get().await().documents.forEach { doc ->
-            mapToBudget(doc)?.let {
-                try { budgetDao.insert(it) } catch (_: Exception) { }
-            }
-        }
-    }
+        val accounts = accountDocs.mapNotNull(::mapToAccount)
+        val categories = categoryDocs.mapNotNull(::mapToCategory)
+        val accountIds = accounts.mapTo(HashSet()) { it.id }
+        val categoryIds = categories.mapTo(HashSet()) { it.id }
+        fun validCategory(id: String?) = id?.takeIf { it in categoryIds }
 
-    /**
-     * Download incremental (sem limpar). Útil para refresh.
-     */
-    suspend fun downloadAll(householdId: String) {
-        val ref = householdRef(householdId)
+        val transactions = txDocs.mapNotNull(::mapToTransaction)
+            .filter { it.accountId in accountIds }
+            .map { it.copy(categoryId = validCategory(it.categoryId)) }
+        val scheduled = scheduledDocs.mapNotNull(::mapToScheduled)
+            .filter { it.accountId in accountIds }
+            .map { it.copy(categoryId = validCategory(it.categoryId)) }
+        val budgets = budgetDocs.mapNotNull(::mapToBudget)
+            .filter { it.categoryId in categoryIds }
 
-        ref.collection("accounts").get().await().documents.forEach { doc ->
-            mapToAccount(doc)?.let { accountDao.insert(it) }
-        }
-        ref.collection("categories").get().await().documents.forEach { doc ->
-            mapToCategory(doc)?.let { categoryDao.insert(it) }
-        }
-        ref.collection("transactions").get().await().documents.forEach { doc ->
-            mapToTransaction(doc)?.let {
-                try { transactionDao.insert(it) } catch (_: Exception) { }
-            }
-        }
-        ref.collection("scheduled_expenses").get().await().documents.forEach { doc ->
-            mapToScheduled(doc)?.let {
-                try { scheduledExpenseDao.insert(it) } catch (_: Exception) { }
-            }
-        }
-        ref.collection("budgets").get().await().documents.forEach { doc ->
-            mapToBudget(doc)?.let {
-                try { budgetDao.insert(it) } catch (_: Exception) { }
-            }
+        database.withTransaction {
+            // Filhos antes dos pais na limpeza; pais antes dos filhos na inserção
+            transactionDao.deleteAll()
+            scheduledExpenseDao.deleteAll()
+            budgetDao.deleteAll()
+            savingsGoalDao.deleteAll()
+            categoryDao.deleteAll()
+            accountDao.deleteAll()
+
+            accountDao.insertAll(accounts)
+            categoryDao.insertAll(categories)
+            transactionDao.insertAll(transactions)
+            scheduledExpenseDao.insertAll(scheduled)
+            budgetDao.insertAll(budgets)
+            savingsGoalDao.insertAll(goals)
+            accountDao.recalculateAllBalances()
         }
     }
 
@@ -226,131 +276,11 @@ class FirestoreSyncManager(
 
     fun startListening(householdId: String) {
         stopListening()
+        if (!scope.isActive) return  // já foi fechado (ex.: finally rodando após o dispose)
         val ref = householdRef(householdId)
-
-        // Accounts e Categories primeiro (não têm foreign keys)
-        listeners += ref.collection("accounts")
-            .addSnapshotListener { snapshots, _ ->
-                snapshots?.documentChanges?.forEach { change ->
-                    scope.launch {
-                        try {
-                            val account = mapToAccount(change.document) ?: return@launch
-                            when (change.type) {
-                                DocumentChange.Type.ADDED,
-                                DocumentChange.Type.MODIFIED -> {
-                                    // Preserva o saldo local — não sobrescreve com valor desatualizado do Firestore
-                                    accountDao.insertIfNotExists(
-                                        account.id, account.name, account.type.name,
-                                        account.balance, account.currency, account.createdAt
-                                    )
-                                    accountDao.updateMetaOnly(
-                                        account.id, account.name, account.type.name, account.currency
-                                    )
-                                }
-                                DocumentChange.Type.REMOVED -> accountDao.delete(account)
-                            }
-                        } catch (_: Exception) { /* offline */ }
-                    }
-                }
-            }
-
-        listeners += ref.collection("categories")
-            .addSnapshotListener { snapshots, _ ->
-                snapshots?.documentChanges?.forEach { change ->
-                    scope.launch {
-                        try {
-                            when (change.type) {
-                                DocumentChange.Type.ADDED,
-                                DocumentChange.Type.MODIFIED -> {
-                                    mapToCategory(change.document)?.let { categoryDao.insert(it) }
-                                }
-                                DocumentChange.Type.REMOVED -> {
-                                    mapToCategory(change.document)?.let { categoryDao.delete(it) }
-                                }
-                            }
-                        } catch (_: Exception) { /* offline */ }
-                    }
-                }
-            }
-
-        // Transactions: verifica se é nova para evitar double-counting no saldo
-        listeners += ref.collection("transactions")
-            .addSnapshotListener { snapshots, _ ->
-                snapshots?.documentChanges?.forEach { change ->
-                    scope.launch {
-                        val tx = mapToTransaction(change.document) ?: return@launch
-                        when (change.type) {
-                            DocumentChange.Type.ADDED,
-                            DocumentChange.Type.MODIFIED -> {
-                                val isNew = transactionDao.getById(tx.id) == null
-                                insertWithRetry { transactionDao.insert(tx) }
-                                if (isNew) {
-                                    // Transação veio de outro device — atualiza saldo local
-                                    val delta = if (tx.type == com.localbank.finance.data.model.TransactionType.INCOME)
-                                        tx.amount else -tx.amount
-                                    try { accountDao.updateBalance(tx.accountId, delta) } catch (_: Exception) { }
-                                }
-                            }
-                            DocumentChange.Type.REMOVED -> {
-                                val existing = transactionDao.getById(tx.id)
-                                if (existing != null) {
-                                    try {
-                                        transactionDao.delete(tx)
-                                        // Reverte o efeito no saldo
-                                        val delta = if (tx.type == com.localbank.finance.data.model.TransactionType.INCOME)
-                                            -tx.amount else tx.amount
-                                        accountDao.updateBalance(tx.accountId, delta)
-                                    } catch (_: Exception) { }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-        // Scheduled expenses (depende de accounts e categories)
-        listeners += ref.collection("scheduled_expenses")
-            .addSnapshotListener { snapshots, _ ->
-                snapshots?.documentChanges?.forEach { change ->
-                    scope.launch {
-                        when (change.type) {
-                            DocumentChange.Type.ADDED,
-                            DocumentChange.Type.MODIFIED -> {
-                                mapToScheduled(change.document)?.let { exp ->
-                                    insertWithRetry { scheduledExpenseDao.insert(exp) }
-                                }
-                            }
-                            DocumentChange.Type.REMOVED -> {
-                                mapToScheduled(change.document)?.let {
-                                    try { scheduledExpenseDao.delete(it) } catch (_: Exception) { }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-        // Budgets (depende de categories)
-        listeners += ref.collection("budgets")
-            .addSnapshotListener { snapshots, _ ->
-                snapshots?.documentChanges?.forEach { change ->
-                    scope.launch {
-                        when (change.type) {
-                            DocumentChange.Type.ADDED,
-                            DocumentChange.Type.MODIFIED -> {
-                                mapToBudget(change.document)?.let { b ->
-                                    insertWithRetry { budgetDao.insert(b) }
-                                }
-                            }
-                            DocumentChange.Type.REMOVED -> {
-                                mapToBudget(change.document)?.let {
-                                    try { budgetDao.delete(it) } catch (_: Exception) { }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        // Pais primeiro (sem FK), depois filhos
+        listOf(ACCOUNTS, CATEGORIES, TRANSACTIONS, SCHEDULED, BUDGETS, GOALS)
+            .forEach { listeners += listen(ref, it) }
     }
 
     fun stopListening() {
@@ -358,26 +288,140 @@ class FirestoreSyncManager(
         listeners.clear()
     }
 
+    /** Encerra listeners e a fila. Writes já enviados ao SDK do Firestore não são afetados. */
+    fun close() {
+        stopListening()
+        scope.cancel()
+    }
+
+    private fun listen(ref: DocumentReference, collection: String): ListenerRegistration =
+        ref.collection(collection).addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                Log.w(TAG, "Listener $collection: ${error.message}")
+                return@addSnapshotListener
+            }
+            snapshot ?: return@addSnapshotListener
+
+            val upserts = mutableListOf<DocumentSnapshot>()
+            val removals = mutableListOf<DocumentSnapshot>()
+            snapshot.documentChanges.forEach { change ->
+                when (change.type) {
+                    DocumentChange.Type.ADDED,
+                    DocumentChange.Type.MODIFIED -> {
+                        // Eco de um write deste aparelho: já está no Room
+                        if (!change.document.metadata.hasPendingWrites()) upserts += change.document
+                    }
+                    DocumentChange.Type.REMOVED -> removals += change.document
+                }
+            }
+            if (upserts.isNotEmpty() || removals.isNotEmpty()) {
+                inbox.trySend(RemoteBatch(collection, upserts, removals))
+            }
+        }
+
     /**
-     * Tenta inserir com retry — lida com FK violations quando
-     * entidades-pai (account/category) ainda não chegaram.
+     * Aplica um lote numa transação. Documentos cujo pai (conta/categoria) ainda não
+     * chegou são adiados e reenfileirados — uma violação de FK dentro da transação
+     * desfaria o lote inteiro.
      */
-    private suspend fun insertWithRetry(maxRetries: Int = 3, action: suspend () -> Unit) {
-        var attempt = 0
-        while (attempt < maxRetries) {
-            try {
-                action()
-                return
-            } catch (e: Exception) {
-                attempt++
-                if (attempt < maxRetries) {
-                    delay(2000L * attempt) // 2s, 4s, 6s
-                } else {
-                    android.util.Log.w("FirestoreSyncManager", "Insert failed after $maxRetries retries: ${e.message}")
+    private suspend fun applyBatch(batch: RemoteBatch) {
+        val isLastAttempt = batch.attempt >= MAX_RETRIES
+        val deferred = mutableListOf<DocumentSnapshot>()
+        var dropped = 0
+
+        database.withTransaction {
+            when (batch.collection) {
+                ACCOUNTS -> {
+                    batch.upserts.mapNotNull(::mapToAccount).forEach { a ->
+                        accountDao.insertIfNotExists(a.id, a.name, a.type.name, 0.0, a.currency, a.createdAt)
+                        accountDao.updateMetaOnly(a.id, a.name, a.type.name, a.currency)
+                    }
+                    batch.removals.mapNotNull(::mapToAccount).forEach { accountDao.delete(it) }
+                    accountDao.recalculateAllBalances()
+                }
+
+                CATEGORIES -> {
+                    val categories = batch.upserts.mapNotNull(::mapToCategory)
+                    categoryDao.insertOrIgnore(categories)
+                    categoryDao.updateAll(categories)
+                    batch.removals.mapNotNull(::mapToCategory).forEach { categoryDao.delete(it) }
+                }
+
+                TRANSACTIONS -> {
+                    val parents = loadParents()
+                    val ready = mutableListOf<AppTransaction>()
+                    batch.upserts.forEach { doc ->
+                        val tx = mapToTransaction(doc) ?: return@forEach
+                        when {
+                            tx.accountId !in parents.accounts ->
+                                if (isLastAttempt) dropped++ else deferred += doc
+                            tx.categoryId != null && tx.categoryId !in parents.categories ->
+                                if (isLastAttempt) ready += tx.copy(categoryId = null) else deferred += doc
+                            else -> ready += tx
+                        }
+                    }
+                    transactionDao.insertAll(ready)
+                    batch.removals.mapNotNull(::mapToTransaction).forEach { transactionDao.delete(it) }
+                    accountDao.recalculateAllBalances()
+                }
+
+                SCHEDULED -> {
+                    val parents = loadParents()
+                    val ready = mutableListOf<ScheduledExpense>()
+                    batch.upserts.forEach { doc ->
+                        val exp = mapToScheduled(doc) ?: return@forEach
+                        when {
+                            exp.accountId !in parents.accounts ->
+                                if (isLastAttempt) dropped++ else deferred += doc
+                            exp.categoryId != null && exp.categoryId !in parents.categories ->
+                                if (isLastAttempt) ready += exp.copy(categoryId = null) else deferred += doc
+                            else -> ready += exp
+                        }
+                    }
+                    scheduledExpenseDao.insertAll(ready)
+                    batch.removals.mapNotNull(::mapToScheduled).forEach { scheduledExpenseDao.delete(it) }
+                }
+
+                GOALS -> {
+                    // Sem FK: aplica direto
+                    savingsGoalDao.insertAll(batch.upserts.mapNotNull(::mapToGoal))
+                    batch.removals.mapNotNull(::mapToGoal).forEach { savingsGoalDao.delete(it) }
+                }
+
+                BUDGETS -> {
+                    val parents = loadParents()
+                    val ready = mutableListOf<Budget>()
+                    batch.upserts.forEach { doc ->
+                        val budget = mapToBudget(doc) ?: return@forEach
+                        when {
+                            budget.categoryId in parents.categories -> ready += budget
+                            isLastAttempt -> dropped++
+                            else -> deferred += doc
+                        }
+                    }
+                    budgetDao.insertAll(ready)
+                    batch.removals.mapNotNull(::mapToBudget).forEach { budgetDao.delete(it) }
                 }
             }
         }
+
+        if (dropped > 0) {
+            Log.w(TAG, "${batch.collection}: $dropped documento(s) sem pai descartados após $MAX_RETRIES tentativas")
+        }
+        if (deferred.isNotEmpty()) {
+            scope.launch {
+                delay(RETRY_DELAY_MS * (batch.attempt + 1))
+                inbox.send(RemoteBatch(batch.collection, deferred, emptyList(), batch.attempt + 1))
+            }
+        }
     }
+
+    private data class Parents(val accounts: Set<String>, val categories: Set<String>)
+
+    private suspend fun loadParents() = Parents(
+        accounts = accountDao.getAllIds().toHashSet(),
+        categories = categoryDao.getAllIds().toHashSet()
+    )
 
     // ─────────────────────────────────────────────
     // Entity → Map
@@ -409,6 +453,12 @@ class FirestoreSyncManager(
     private fun budgetToMap(b: Budget): HashMap<String, Any?> = hashMapOf(
         "id" to b.id, "categoryId" to b.categoryId, "monthYear" to b.monthYear,
         "limitAmount" to b.limitAmount, "createdBy" to b.createdBy, "createdAt" to b.createdAt
+    )
+
+    private fun goalToMap(g: SavingsGoal): HashMap<String, Any?> = hashMapOf(
+        "id" to g.id, "name" to g.name, "targetAmount" to g.targetAmount,
+        "savedAmount" to g.savedAmount, "colorHex" to g.colorHex, "deadline" to g.deadline,
+        "createdAt" to g.createdAt, "createdBy" to g.createdBy
     )
 
     // ─────────────────────────────────────────────
@@ -476,6 +526,23 @@ class FirestoreSyncManager(
         } catch (_: Exception) { null }
     }
 
+    private fun mapToGoal(doc: DocumentSnapshot): SavingsGoal? {
+        return try {
+            val target = doc.getDouble("targetAmount") ?: return null
+            SavingsGoal(
+                id = doc.getString("id") ?: doc.id,
+                name = doc.getString("name") ?: return null,
+                targetAmount = target,
+                // Incrementos simultâneos podem passar do alvo no servidor
+                savedAmount = (doc.getDouble("savedAmount") ?: 0.0).coerceIn(0.0, target),
+                colorHex = doc.getString("colorHex") ?: "#4CAF50",
+                deadline = doc.getLong("deadline"),
+                createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                createdBy = doc.getString("createdBy")
+            )
+        } catch (_: Exception) { null }
+    }
+
     private fun mapToBudget(doc: DocumentSnapshot): Budget? {
         return try {
             Budget(
@@ -487,5 +554,18 @@ class FirestoreSyncManager(
                 createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
             )
         } catch (_: Exception) { null }
+    }
+
+    companion object {
+        private const val TAG = "FirestoreSyncManager"
+        private const val ACCOUNTS = "accounts"
+        private const val CATEGORIES = "categories"
+        private const val TRANSACTIONS = "transactions"
+        private const val SCHEDULED = "scheduled_expenses"
+        private const val BUDGETS = "budgets"
+        private const val GOALS = "savings_goals"
+        private const val MAX_BATCH_OPS = 450
+        private const val MAX_RETRIES = 3
+        private const val RETRY_DELAY_MS = 2000L
     }
 }

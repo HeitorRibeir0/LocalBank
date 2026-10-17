@@ -4,9 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.localbank.finance.data.model.*
 import com.localbank.finance.data.repository.FinanceRepository
+import com.localbank.finance.util.DateRanges
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.util.Calendar
 
 data class BudgetWithProgress(
     val budget: Budget,
@@ -24,29 +25,7 @@ data class BudgetUiState(
 class BudgetViewModel(private val repository: FinanceRepository) : ViewModel() {
 
     private val currentMonthYear: String
-        get() {
-            val cal = Calendar.getInstance()
-            return String.format("%04d-%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
-        }
-
-    private val monthRange: Pair<Long, Long>
-        get() {
-            val cal = Calendar.getInstance()
-            cal.set(Calendar.DAY_OF_MONTH, 1)
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            val from = cal.timeInMillis
-
-            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
-            cal.set(Calendar.HOUR_OF_DAY, 23)
-            cal.set(Calendar.MINUTE, 59)
-            cal.set(Calendar.SECOND, 59)
-            val to = cal.timeInMillis
-
-            return Pair(from, to)
-        }
+        get() = DateRanges.monthKey()
 
     val uiState: StateFlow<BudgetUiState> = combine(
         repository.getBudgetsByMonth(currentMonthYear),
@@ -54,16 +33,16 @@ class BudgetViewModel(private val repository: FinanceRepository) : ViewModel() {
         repository.getAllTransactions()
     ) { budgets, categories, transactions ->
 
-        val (from, to) = monthRange
-        val monthExpenses = transactions.filter {
-            it.type == TransactionType.EXPENSE && it.date in from..to
-        }
+        val month = DateRanges.month()
+        val spentByCategory = transactions
+            .filter { it.type == TransactionType.EXPENSE && it.date in month }
+            .groupBy { it.categoryId }
+            .mapValues { (_, txns) -> txns.sumOf { it.amount } }
+        val categoriesById = categories.associateBy { it.id }
 
         val budgetsWithProgress = budgets.map { budget ->
-            val category = categories.find { it.id == budget.categoryId }
-            val spent = monthExpenses
-                .filter { it.categoryId == budget.categoryId }
-                .sumOf { it.amount }
+            val category = categoriesById[budget.categoryId]
+            val spent = spentByCategory[budget.categoryId] ?: 0.0
 
             BudgetWithProgress(
                 budget           = budget,
@@ -78,7 +57,7 @@ class BudgetViewModel(private val repository: FinanceRepository) : ViewModel() {
             budgets    = budgetsWithProgress,
             categories = categories
         )
-    }.stateIn(
+    }.flowOn(Dispatchers.Default).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = BudgetUiState()

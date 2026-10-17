@@ -1,7 +1,10 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.ui.util.rememberCurrencyFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,7 +35,7 @@ fun AccountsScreen(
 ) {
     val accounts by viewModel.accounts.collectAsState()
     val appColors = LocalAppColors.current
-    val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    val currency = rememberCurrencyFormat()
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<Account?>(null) }
 
@@ -78,7 +81,7 @@ fun AccountsScreen(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(accounts) { account ->
+                items(accounts, key = { it.id }) { account ->
                     AccountCard(account = account, currency = currency,
                         onDelete = { showDeleteDialog = account })
                 }
@@ -189,7 +192,9 @@ fun AddAccountDialog(
         containerColor = DarkCard,
         title = { Text("Nova conta", color = OnDarkText) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it; showError = false },
                     label = { Text("Nome (ex: Nubank, Itaú)") }, singleLine = true,

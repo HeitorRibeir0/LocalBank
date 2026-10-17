@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.Calendar
+import com.localbank.finance.util.DateRanges
 import java.util.UUID
 
 class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() {
@@ -79,18 +79,9 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
     }
 
     private suspend fun checkBudgetAlert(categoryId: String) {
-        val cal = Calendar.getInstance()
-        val monthYear = String.format("%04d-%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
-
-        cal.set(Calendar.DAY_OF_MONTH, 1); cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-        val from = cal.timeInMillis
-        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
-        cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59); cal.set(Calendar.SECOND, 59)
-        val to = cal.timeInMillis
-
-        val budget = repository.getBudgetForCategory(categoryId, monthYear) ?: return
-        val spent = repository.getSpentForCategory(categoryId, from, to)
+        val month = DateRanges.month()
+        val budget = repository.getBudgetForCategory(categoryId, DateRanges.monthKey()) ?: return
+        val spent = repository.getSpentForCategory(categoryId, month.from, month.to)
         val pct = spent / budget.limitAmount
         val categoryName = categories.value.find { it.id == categoryId }?.name ?: "categoria"
 

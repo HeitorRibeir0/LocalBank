@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,7 +47,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.first
 
 class MainActivity : ComponentActivity() {
 
@@ -128,7 +128,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // Estado de navegação: login → household → app
-        var authState by remember {
+        var authState by rememberSaveable {
             mutableStateOf(
                 if (AuthManager.isSignedIn) "check_household" else "login"
             )
@@ -195,15 +195,7 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     // Criar sync manager e repository com sync ativo
-                    val syncManager = remember(householdId) {
-                        FirestoreSyncManager(
-                            accountDao = db.accountDao(),
-                            categoryDao = db.categoryDao(),
-                            transactionDao = db.transactionDao(),
-                            scheduledExpenseDao = db.scheduledExpenseDao(),
-                            budgetDao = db.budgetDao()
-                        )
-                    }
+                    val syncManager = remember(householdId) { FirestoreSyncManager(db) }
 
                     val repository = remember(householdId) {
                         FinanceRepository(
@@ -220,37 +212,27 @@ class MainActivity : ComponentActivity() {
 
                     val factory = remember(householdId) { ViewModelFactory(repository) }
 
-                    // Flag para mostrar loading durante sync inicial
-                    var isSyncing by remember { mutableStateOf(true) }
+                    // Só quem acabou de entrar no lar espera o download; o resto abre
+                    // direto com os dados locais e sincroniza em segundo plano.
+                    var isSyncing by remember(householdId) {
+                        mutableStateOf(HouseholdManager.needsInitialDownload(this@MainActivity))
+                    }
 
-                    // Sincronização inicial: joiner baixa, creator sobe
                     LaunchedEffect(householdId) {
+                        val context = this@MainActivity
                         try {
-                            val needsDownload = HouseholdManager.needsInitialDownload(this@MainActivity)
-
-                            if (needsDownload) {
-                                // Membro novo: limpar dados locais e baixar tudo do Firestore
+                            if (HouseholdManager.needsInitialDownload(context)) {
                                 syncManager.clearAndDownload(householdId)
-                                HouseholdManager.clearNeedsInitialDownload(this@MainActivity)
-                            } else {
-                                // Criador ou usuário retornando: enviar dados locais
-                                try {
-                                    val accounts = db.accountDao().getAllAccounts().first()
-                                    val categories = db.categoryDao().getAllCategories().first()
-                                    val transactions = db.transactionDao().getAllTransactions().first()
-                                    val scheduled = db.scheduledExpenseDao().getAllScheduled().first()
-                                    val budgets = db.budgetDao().getAllBudgets().first()
-
-                                    syncManager.uploadAll(
-                                        householdId, accounts, categories,
-                                        transactions, scheduled, budgets
-                                    )
-                                } catch (_: Exception) { /* offline */ }
+                                HouseholdManager.clearNeedsInitialDownload(context)
+                            } else if (!HouseholdManager.isInitialUploadDone(context)) {
+                                // Não bloqueia: offline o Firestore enfileira e envia depois
+                                syncManager.uploadAll(householdId) { ok ->
+                                    if (ok) HouseholdManager.markInitialUploadDone(context)
+                                }
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("MainActivity", "Sync error: ${e.message}", e)
                         } finally {
-                            // Iniciar listeners real-time APÓS o sync inicial
                             syncManager.startListening(householdId)
                             // Recalcula saldos para corrigir divergências entre devices
                             try { syncManager.recalculateAllBalances() } catch (_: Exception) {}
@@ -259,8 +241,8 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // Cleanup listeners ao sair
-                    DisposableEffect(Unit) {
-                        onDispose { syncManager.stopListening() }
+                    DisposableEffect(syncManager) {
+                        onDispose { syncManager.close() }
                     }
 
                     if (isSyncing) {
@@ -307,6 +289,7 @@ class MainActivity : ComponentActivity() {
                                         db.transactionDao().deleteAll()
                                         db.scheduledExpenseDao().deleteAll()
                                         db.budgetDao().deleteAll()
+                                        db.savingsGoalDao().deleteAll()
                                         db.categoryDao().deleteAll()
                                         db.accountDao().deleteAll()
                                     }

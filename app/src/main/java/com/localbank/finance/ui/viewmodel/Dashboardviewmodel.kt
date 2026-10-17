@@ -6,8 +6,9 @@ import com.localbank.finance.data.model.ScheduledExpense
 import com.localbank.finance.data.model.Transaction
 import com.localbank.finance.data.model.TransactionType
 import com.localbank.finance.data.repository.FinanceRepository
+import com.localbank.finance.util.DateRanges
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
-import java.util.Calendar
 
 data class CategoryExpenseSlice(
     val categoryName: String,
@@ -22,30 +23,12 @@ data class DashboardUiState(
     val projectedBalance: Double = 0.0,
     val pendingScheduledTotal: Double = 0.0,
     val recentTransactions: List<Transaction> = emptyList(),
-    val upcomingExpenses: List<ScheduledExpense> = emptyList(),
+    val urgentExpenses: List<ScheduledExpense> = emptyList(),    // vence em até 3 dias
+    val upcomingExpenses: List<ScheduledExpense> = emptyList(),  // demais dos próximos 30 dias
     val categoryExpenses: List<CategoryExpenseSlice> = emptyList()
 )
 
 class DashboardViewModel(private val repository: FinanceRepository) : ViewModel() {
-
-    private val monthRange: Pair<Long, Long>
-        get() {
-            val cal = Calendar.getInstance()
-            cal.set(Calendar.DAY_OF_MONTH, 1)
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            val from = cal.timeInMillis
-
-            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
-            cal.set(Calendar.HOUR_OF_DAY, 23)
-            cal.set(Calendar.MINUTE, 59)
-            cal.set(Calendar.SECOND, 59)
-            val to = cal.timeInMillis
-
-            return Pair(from, to)
-        }
 
     val uiState: StateFlow<DashboardUiState> = combine(
         repository.getAllTransactions(),
@@ -53,26 +36,29 @@ class DashboardViewModel(private val repository: FinanceRepository) : ViewModel(
         repository.getAllCategories()
     ) { transactions, scheduled, categories ->
 
-        val (from, to) = monthRange
-        val monthTransactions = transactions.filter { it.date in from..to }
+        val month = DateRanges.month()
+        val monthTransactions = transactions.filter { it.date in month }
 
         val income  = monthTransactions.filter { it.type == TransactionType.INCOME  }.sumOf { it.amount }
         val expense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
 
         val now = System.currentTimeMillis()
-        val in30Days = now + 30L * 24 * 60 * 60 * 1000
+        val in30Days = now + 30 * DAY_MS
         val pending = scheduled.filter { !it.isPaid }
-        val upcoming = pending
+        val (urgent, upcoming) = pending
             .filter { it.dueDate <= in30Days }
             .sortedBy { it.dueDate }
+            .partition { (it.dueDate - now) / DAY_MS <= 3 }
         val pendingTotal = pending.sumOf { it.amount }
+
+        val categoriesById = categories.associateBy { it.id }
 
         // gastos por categoria no mês (para o gráfico donut)
         val categoryExpenses = monthTransactions
             .filter { it.type == TransactionType.EXPENSE }
             .groupBy { it.categoryId }
             .map { (catId, txns) ->
-                val cat = categories.find { it.id == catId }
+                val cat = categoriesById[catId]
                 CategoryExpenseSlice(
                     categoryName = cat?.name ?: "Sem categoria",
                     colorHex     = cat?.colorHex ?: "#9E9E9E",
@@ -88,12 +74,17 @@ class DashboardViewModel(private val repository: FinanceRepository) : ViewModel(
             projectedBalance      = (income - expense) - pendingTotal,
             pendingScheduledTotal = pendingTotal,
             recentTransactions    = transactions.take(5),
+            urgentExpenses        = urgent,
             upcomingExpenses      = upcoming,
             categoryExpenses      = categoryExpenses
         )
-    }.stateIn(
+    }.flowOn(Dispatchers.Default).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = DashboardUiState()
     )
+
+    private companion object {
+        const val DAY_MS = 24L * 60 * 60 * 1000
+    }
 }

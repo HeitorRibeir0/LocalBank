@@ -1,9 +1,13 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.ui.util.rememberCurrencyFormat
+import com.localbank.finance.ui.util.rememberDateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -38,7 +42,7 @@ import java.util.*
 fun SavingsGoalScreen(viewModel: SavingsGoalViewModel) {
     val goals by viewModel.goals.collectAsState()
     val appColors = LocalAppColors.current
-    val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    val currency = rememberCurrencyFormat()
     var showAddDialog by remember { mutableStateOf(false) }
     var showDepositDialog by remember { mutableStateOf<SavingsGoal?>(null) }
     var showEditDialog by remember { mutableStateOf<SavingsGoal?>(null) }
@@ -77,7 +81,7 @@ fun SavingsGoalScreen(viewModel: SavingsGoalViewModel) {
                     Text("Metas de economia", fontWeight = FontWeight.Bold,
                         fontSize = 20.sp, color = OnDarkText)
                 }
-                items(goals) { goal ->
+                items(goals, key = { it.id }) { goal ->
                     GoalCard(
                         goal = goal,
                         currency = currency,
@@ -140,7 +144,7 @@ private fun GoalCard(
     onDelete: () -> Unit
 ) {
     val appColors = LocalAppColors.current
-    val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+    val sdf = rememberDateFormat("dd/MM/yyyy")
     val progress = if (goal.targetAmount > 0) (goal.savedAmount / goal.targetAmount).toFloat() else 0f
     val isComplete = progress >= 1f
     val goalColor = try { Color(android.graphics.Color.parseColor(goal.colorHex)) }
@@ -249,7 +253,9 @@ private fun DepositDialog(
         title = { Text("Depositar em \"${goal.name}\"", color = OnDarkText,
             fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Faltam ${currency.format(remaining)} para a meta.",
                     color = OnDarkTextSecondary, fontSize = 13.sp)
                 CurrencyField(
@@ -284,7 +290,7 @@ private fun GoalFormDialog(
     onConfirm: (name: String, target: Double, colorHex: String, deadline: Long?) -> Unit
 ) {
     val appColors = LocalAppColors.current
-    val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+    val sdf = rememberDateFormat("dd/MM/yyyy")
 
     var name by remember { mutableStateOf(initialName) }
     var amountRaw by remember { mutableStateOf(initialTarget) }
@@ -301,7 +307,9 @@ private fun GoalFormDialog(
         containerColor = DarkCard,
         title = { Text(title, color = OnDarkText, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it; showError = false },
                     label = { Text("Nome da meta") }, singleLine = true,

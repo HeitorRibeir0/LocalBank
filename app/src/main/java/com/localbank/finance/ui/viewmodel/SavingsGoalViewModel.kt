@@ -36,14 +36,13 @@ class SavingsGoalViewModel(private val repository: FinanceRepository) : ViewMode
 
     fun deposit(goal: SavingsGoal, amount: Double) {
         viewModelScope.launch {
-            val updated = goal.copy(savedAmount = (goal.savedAmount + amount).coerceAtMost(goal.targetAmount))
-            repository.updateSavingsGoal(updated)
+            repository.depositToGoal(goal.id, amount)
         }
     }
 
     fun updateGoal(goal: SavingsGoal) {
         viewModelScope.launch {
-            repository.updateSavingsGoal(goal)
+            repository.updateSavingsGoalMeta(goal)
         }
     }
 

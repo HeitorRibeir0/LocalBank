@@ -17,6 +17,7 @@ object HouseholdManager {
     private const val PREFS_NAME = "secure_household_prefs"
     private const val KEY_HOUSEHOLD_ID = "household_id"
     private const val KEY_NEEDS_DOWNLOAD = "needs_initial_download"
+    private const val KEY_UPLOAD_DONE = "initial_upload_done"
 
     private val db = FirebaseFirestore.getInstance()
 
@@ -55,6 +56,7 @@ object HouseholdManager {
         getSecurePrefs(context).edit()
             .remove(KEY_HOUSEHOLD_ID)
             .remove(KEY_NEEDS_DOWNLOAD)
+            .remove(KEY_UPLOAD_DONE)
             .apply()
     }
 
@@ -68,6 +70,17 @@ object HouseholdManager {
 
     fun clearNeedsInitialDownload(context: Context) {
         getSecurePrefs(context).edit().putBoolean(KEY_NEEDS_DOWNLOAD, false).apply()
+    }
+
+    /**
+     * Dados locais já foram enviados ao lar. Depois disso, cada alteração é enviada
+     * individualmente pelo repositório — não é preciso reenviar tudo a cada abertura.
+     */
+    fun isInitialUploadDone(context: Context): Boolean =
+        getSecurePrefs(context).getBoolean(KEY_UPLOAD_DONE, false)
+
+    fun markInitialUploadDone(context: Context) {
+        getSecurePrefs(context).edit().putBoolean(KEY_UPLOAD_DONE, true).apply()
     }
 
     /**
@@ -89,6 +102,9 @@ object HouseholdManager {
         val doc = result.documents.firstOrNull() ?: return null
         val householdId = doc.id
         saveHouseholdId(context, householdId)
+        // Reinstalação: o banco local só tem os dados padrão. Baixar em vez de
+        // enviar evita duplicar categorias/contas padrão no lar.
+        getSecurePrefs(context).edit().putBoolean(KEY_NEEDS_DOWNLOAD, true).apply()
         return householdId
     }
 
