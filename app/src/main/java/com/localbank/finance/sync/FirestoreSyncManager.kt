@@ -2,7 +2,6 @@ package com.localbank.finance.sync
 
 import android.util.Log
 import androidx.room.withTransaction
-import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
@@ -138,43 +137,50 @@ class FirestoreSyncManager(private val database: AppDatabase) {
         householdRef(householdId).collection(collection).document(docId).delete()
     }
 
-    // Deleta em lotes respeitando o limite de 500 ops do Firestore
-    private suspend fun deleteCollection(ref: CollectionReference) {
-        val docs = ref.get().await().documents
-        if (docs.isEmpty()) return
-        docs.chunked(MAX_BATCH_OPS).forEach { chunk ->
+    /**
+     * Apaga documentos pelos IDs informados, em lotes de até 450 operações.
+     * Não espera o servidor: offline, o SDK guarda as exclusões e envia quando a rede voltar.
+     */
+    fun deleteRemoteIds(householdId: String, collection: String, ids: List<String>) {
+        if (ids.isEmpty()) return
+        val ref = householdRef(householdId).collection(collection)
+        ids.chunked(MAX_BATCH_OPS).forEach { chunk ->
             val batch = db.batch()
-            chunk.forEach { batch.delete(it.reference) }
-            batch.commit().await()
+            chunk.forEach { batch.delete(ref.document(it)) }
+            batch.commit().addOnFailureListener { Log.w(TAG, "Falha ao apagar em $collection: ${it.message}") }
         }
     }
 
-    // Apaga transações, agendamentos e orçamentos + zera saldos das contas
+    // Apaga transações, agendamentos e orçamentos + zera saldos das contas.
+    // Usa os IDs locais, porque ler o remoto falha quando está offline.
+    // Precisa ser chamado ANTES de apagar o local.
     suspend fun deleteHistoryRemote(householdId: String) {
-        val ref = householdRef(householdId)
-        deleteCollection(ref.collection(TRANSACTIONS))
-        deleteCollection(ref.collection(SCHEDULED))
-        deleteCollection(ref.collection(BUDGETS))
-        val accounts = ref.collection(ACCOUNTS).get().await().documents
-        accounts.chunked(MAX_BATCH_OPS).forEach { chunk ->
+        deleteRemoteIds(householdId, TRANSACTIONS, transactionDao.getAllOnce().map { it.id })
+        deleteRemoteIds(householdId, SCHEDULED, scheduledExpenseDao.getAllOnce().map { it.id })
+        deleteRemoteIds(householdId, BUDGETS, budgetDao.getAllOnce().map { it.id })
+        zeroRemoteBalances(householdId, accountDao.getAllOnce().map { it.id })
+    }
+
+    private fun zeroRemoteBalances(householdId: String, accountIds: List<String>) {
+        val ref = householdRef(householdId).collection(ACCOUNTS)
+        accountIds.chunked(MAX_BATCH_OPS).forEach { chunk ->
             val batch = db.batch()
-            chunk.forEach { batch.update(it.reference, "balance", 0.0) }
-            batch.commit().await()
+            chunk.forEach { batch.update(ref.document(it), "balance", 0.0) }
+            batch.commit().addOnFailureListener { Log.w(TAG, "Falha ao zerar saldos: ${it.message}") }
         }
     }
 
     // Recalcula todos os saldos a partir das transações salvas localmente.
     suspend fun recalculateAllBalances() = accountDao.recalculateAllBalances()
 
-    // Apaga tudo: histórico + contas + categorias
+    // Apaga tudo: histórico + contas + categorias + metas. Precisa ser chamado ANTES do local.
     suspend fun deleteAllRemote(householdId: String) {
-        val ref = householdRef(householdId)
-        deleteCollection(ref.collection(TRANSACTIONS))
-        deleteCollection(ref.collection(SCHEDULED))
-        deleteCollection(ref.collection(BUDGETS))
-        deleteCollection(ref.collection(ACCOUNTS))
-        deleteCollection(ref.collection(CATEGORIES))
-        deleteCollection(ref.collection(GOALS))
+        deleteRemoteIds(householdId, TRANSACTIONS, transactionDao.getAllOnce().map { it.id })
+        deleteRemoteIds(householdId, SCHEDULED, scheduledExpenseDao.getAllOnce().map { it.id })
+        deleteRemoteIds(householdId, BUDGETS, budgetDao.getAllOnce().map { it.id })
+        deleteRemoteIds(householdId, ACCOUNTS, accountDao.getAllOnce().map { it.id })
+        deleteRemoteIds(householdId, CATEGORIES, categoryDao.getAllOnce().map { it.id })
+        deleteRemoteIds(householdId, GOALS, savingsGoalDao.getAllOnce().map { it.id })
     }
 
     // ─────────────────────────────────────────────

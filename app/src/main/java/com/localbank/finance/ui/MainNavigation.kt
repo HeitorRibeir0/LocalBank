@@ -19,9 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.flow.map
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.localbank.finance.data.database.AppDatabase
 import com.localbank.finance.ui.screens.*
 import com.localbank.finance.ui.viewmodel.BudgetViewModel
 import com.localbank.finance.ui.viewmodel.DashboardViewModel
@@ -58,6 +61,13 @@ fun MainNavigation(
     val selectedScreen = screens.firstOrNull { it.route == selectedRoute } ?: Screen.Dashboard
     var showProfile by rememberSaveable { mutableStateOf(false) }
     var showAccounts by rememberSaveable { mutableStateOf(false) }
+    var showCaptures by rememberSaveable { mutableStateOf(false) }
+
+    // Contagem de compras capturadas aguardando confirmação (fila local deste aparelho)
+    val context = LocalContext.current
+    val pendingDao = remember { AppDatabase.getInstance(context).pendingCaptureDao() }
+    val pendingCountFlow = remember(pendingDao) { pendingDao.observeAll().map { it.size } }
+    val pendingCount by pendingCountFlow.collectAsState(initial = 0)
 
     var showAddEntry by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -75,15 +85,21 @@ fun MainNavigation(
     val useRail = LocalConfiguration.current.screenWidthDp >= 600
 
     // Voltar fecha a tela sobreposta ou retorna ao Início antes de sair do app
-    BackHandler(enabled = showAccounts || showProfile || selectedScreen != Screen.Dashboard) {
+    BackHandler(enabled = showCaptures || showAccounts || showProfile || selectedScreen != Screen.Dashboard) {
         when {
+            showCaptures -> showCaptures = false
             showAccounts -> showAccounts = false
             showProfile  -> showProfile = false
             else         -> selectedRoute = Screen.Dashboard.route
         }
     }
 
-    if (showAccounts) {
+    if (showCaptures) {
+        PendingCapturesScreen(
+            viewModel = expenseViewModel,
+            onBack = { showCaptures = false }
+        )
+    } else if (showAccounts) {
         AccountsScreen(
             viewModel = expenseViewModel,
             onBack = { showAccounts = false }
@@ -133,6 +149,13 @@ fun MainNavigation(
                         actionIconContentColor = OnDarkTextSecondary
                     ),
                     actions = {
+                        BadgedBox(badge = {
+                            if (pendingCount > 0) Badge { Text("$pendingCount") }
+                        }) {
+                            IconButton(onClick = { showCaptures = true }) {
+                                Icon(Icons.Default.Notifications, "Compras capturadas")
+                            }
+                        }
                         IconButton(onClick = { showProfile = true }) {
                             Icon(Icons.Default.AccountCircle, "Perfil")
                         }

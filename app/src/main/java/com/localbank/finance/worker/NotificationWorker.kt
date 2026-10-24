@@ -24,7 +24,8 @@ class NotificationWorker(
             categoryDao         = db.categoryDao(),
             transactionDao      = db.transactionDao(),
             scheduledExpenseDao = db.scheduledExpenseDao(),
-            budgetDao           = db.budgetDao()
+            budgetDao           = db.budgetDao(),
+            savingsGoalDao      = db.savingsGoalDao()
         )
 
         val now      = System.currentTimeMillis()
@@ -36,7 +37,7 @@ class NotificationWorker(
 
         createNotificationChannel()
 
-        val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+        val currency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR"))
         val manager  = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         pending.forEach { expense ->

@@ -42,7 +42,7 @@ fun CurrencyField(
 }
 
 class CurrencyVisualTransformation : VisualTransformation {
-    private val formatter = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    private val formatter = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR"))
 
     override fun filter(text: AnnotatedString): TransformedText {
         val raw = text.text
