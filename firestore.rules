@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(hid) {
+      return signedIn() &&
+        request.auth.uid in get(/databases/$(database)/documents/households/$(hid)).data.members;
+    }
+
+    // Lar. Qualquer usuário logado pode LER um lar pelo ID, porque a entrada precisa
+    // validar o convite. Para não vazar o código, mova o convite para uma Cloud Function.
+    match /households/{hid} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.auth.uid in resource.data.members;
+
+      // Criar: só o dono, e ele precisa estar na lista de membros
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.auth.uid in request.resource.data.members;
+
+      // Atualizar: membros podem alterar o lar. Limite de 5 membros e dono imutável.
+      // Quem não é membro só pode ENTRAR: enquanto o convite estiver válido, adicionar
+      // apenas a si mesmo (members += uid e memberNames[uid]) e nada mais.
+      allow update: if signedIn()
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.members.size() <= 5
+        && (
+          isMember(hid)
+          || (
+            resource.data.inviteExpiresAt > request.time.toMillis()
+            && request.resource.data.members == resource.data.members.concat([request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberNames'])
+            && request.resource.data.memberNames.diff(resource.data.memberNames).affectedKeys().hasOnly([request.auth.uid])
+          )
+        );
+
+      allow delete: if false;
+
+      // Dados do lar (contas, transações, orçamentos, metas...): só membros
+      match /{collection}/{docId} {
+        allow read, write: if isMember(hid);
+      }
+    }
+
+    // Convites: leitura pelo código; removidos ao serem usados.
+    match /invites/{code} {
+      allow get, delete: if signedIn();
+      allow create: if signedIn();
+      allow list, update: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

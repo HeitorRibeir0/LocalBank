@@ -7,7 +7,7 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-val PtBr: Locale = Locale("pt", "BR")
+val PtBr: Locale = Locale.forLanguageTag("pt-BR")
 
 // Formatadores são caros de criar; sem remember eles seriam recriados a cada
 // recomposição — em listas, uma vez por item visível a cada frame de scroll.

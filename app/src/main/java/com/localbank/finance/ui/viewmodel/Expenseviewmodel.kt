@@ -82,6 +82,7 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
         val month = DateRanges.month()
         val budget = repository.getBudgetForCategory(categoryId, DateRanges.monthKey()) ?: return
         val spent = repository.getSpentForCategory(categoryId, month.from, month.to)
+        if (budget.limitAmount <= 0) return   // evita divisão por zero (limite zerado/negativo)
         val pct = spent / budget.limitAmount
         val categoryName = categories.value.find { it.id == categoryId }?.name ?: "categoria"
 

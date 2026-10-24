@@ -3,6 +3,7 @@ package com.localbank.finance.data.repository
 import com.localbank.finance.data.database.*
 import com.localbank.finance.data.model.*
 import com.localbank.finance.sync.FirestoreSyncManager
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 
 class FinanceRepository(
@@ -11,9 +12,10 @@ class FinanceRepository(
     private val transactionDao: TransactionDao,
     private val scheduledExpenseDao: ScheduledExpenseDao,
     private val budgetDao: BudgetDao,
-    private val savingsGoalDao: SavingsGoalDao? = null,
+    private val savingsGoalDao: SavingsGoalDao,
     private val syncManager: FirestoreSyncManager? = null,
-    private val householdId: String? = null
+    private val householdId: String? = null,
+    private val database: AppDatabase? = null
 ) {
 
     // ─────────────────────────────────────────────
@@ -34,8 +36,15 @@ class FinanceRepository(
     }
 
     suspend fun deleteAccount(account: Account) {
+        // O cascade local apaga transações e agendamentos da conta; no remoto é preciso apagar à mão
+        val txIds = transactionDao.getAllOnce().filter { it.accountId == account.id }.map { it.id }
+        val schedIds = scheduledExpenseDao.getAllOnce().filter { it.accountId == account.id }.map { it.id }
         accountDao.delete(account)
-        syncPush { it.deleteRemote(householdId!!, "accounts", account.id) }
+        syncPush {
+            it.deleteRemoteIds(householdId!!, "transactions", txIds)
+            it.deleteRemoteIds(householdId!!, "scheduled_expenses", schedIds)
+            it.deleteRemote(householdId!!, "accounts", account.id)
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -133,7 +142,20 @@ class FinanceRepository(
     suspend fun markAsNotified(id: String) =
         scheduledExpenseDao.markAsNotified(id)
 
+    /** Marca como avisada e envia a marcação ao Firestore, para o outro aparelho não avisar de novo. */
+    suspend fun markNotified(expense: ScheduledExpense) {
+        scheduledExpenseDao.markAsNotified(expense.id)
+        syncPush { it.pushScheduledExpense(householdId!!, expense.copy(notified = true)) }
+    }
+
     suspend fun payScheduledExpense(expense: ScheduledExpense) {
+        // Tudo ou nada: sem isso, uma falha no meio deixa a conta paga sem lançamento
+        val db = database
+        if (db != null) db.withTransaction { payScheduledExpenseInternal(expense) }
+        else payScheduledExpenseInternal(expense)
+    }
+
+    private suspend fun payScheduledExpenseInternal(expense: ScheduledExpense) {
         scheduledExpenseDao.markAsPaid(expense.id)
         val transaction = Transaction(
             accountId   = expense.accountId,
@@ -204,21 +226,21 @@ class FinanceRepository(
     // ─────────────────────────────────────────────
 
     fun getAllSavingsGoals(): Flow<List<SavingsGoal>> =
-        savingsGoalDao!!.getAll()
+        savingsGoalDao.getAll()
 
     suspend fun insertSavingsGoal(goal: SavingsGoal) {
-        savingsGoalDao!!.insert(goal)
+        savingsGoalDao.insert(goal)
         syncPush { it.pushSavingsGoal(householdId!!, goal) }
     }
 
     /** Atualiza nome, alvo, cor e prazo — o valor guardado só muda por [depositToGoal]. */
     suspend fun updateSavingsGoalMeta(goal: SavingsGoal) {
-        savingsGoalDao!!.updateMeta(goal.id, goal.name, goal.targetAmount, goal.colorHex, goal.deadline)
+        savingsGoalDao.updateMeta(goal.id, goal.name, goal.targetAmount, goal.colorHex, goal.deadline)
         syncPush { it.pushSavingsGoalMeta(householdId!!, goal) }
     }
 
     suspend fun depositToGoal(goalId: String, amount: Double) {
-        val dao = savingsGoalDao!!
+        val dao = savingsGoalDao
         val before = dao.getById(goalId)?.savedAmount ?: return
         dao.addToSaved(goalId, amount)
         val applied = (dao.getById(goalId)?.savedAmount ?: before) - before
@@ -226,7 +248,7 @@ class FinanceRepository(
     }
 
     suspend fun deleteSavingsGoal(goal: SavingsGoal) {
-        savingsGoalDao!!.delete(goal)
+        savingsGoalDao.delete(goal)
         syncPush { it.deleteRemote(householdId!!, "savings_goals", goal.id) }
     }
 

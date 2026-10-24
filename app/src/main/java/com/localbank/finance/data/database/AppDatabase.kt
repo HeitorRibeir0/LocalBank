@@ -20,10 +20,11 @@ import java.util.UUID
         Transaction::class,
         ScheduledExpense::class,
         Budget::class,
-        SavingsGoal::class
+        SavingsGoal::class,
+        PendingCapture::class
     ],
-    version = 5,
-    exportSchema = false
+    version = 6,
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -34,12 +35,30 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun scheduledExpenseDao(): ScheduledExpenseDao
     abstract fun budgetDao(): BudgetDao
     abstract fun savingsGoalDao(): SavingsGoalDao
+    abstract fun pendingCaptureDao(): PendingCaptureDao
 
     companion object {
         // Índice em transactions.date — todas as telas ordenam/filtram por data
         private val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_date` ON `transactions` (`date`)")
+            }
+        }
+
+        // Fila de compras capturadas das notificações (só neste aparelho)
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pending_captures` (" +
+                        "`id` TEXT NOT NULL, `amount` REAL NOT NULL, `merchant` TEXT NOT NULL, " +
+                        "`sourceLabel` TEXT NOT NULL, `sourcePackage` TEXT NOT NULL, " +
+                        "`detectedAt` INTEGER NOT NULL, `fingerprint` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`id`))"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_pending_captures_fingerprint` " +
+                        "ON `pending_captures` (`fingerprint`)"
+                )
             }
         }
 
@@ -57,8 +76,8 @@ abstract class AppDatabase : RoomDatabase() {
                     "finance_secure_db"
                 )
                     .openHelperFactory(factory)
-                    .addMigrations(MIGRATION_4_5)
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .fallbackToDestructiveMigrationFrom(1, 2, 3)
                     .addCallback(prepopulateCallback)
                     .build()
                     .also { INSTANCE = it }
@@ -91,6 +110,9 @@ abstract class AppDatabase : RoomDatabase() {
             prefs.edit().putString("db_passphrase", newPassphrase).apply()
             return newPassphrase.toByteArray()
         }
+
+        /** Recria categorias e conta padrão (usado depois de limpar os dados no logout). */
+        fun seedDefaults(db: SupportSQLiteDatabase) = prepopulateCallback.onCreate(db)
 
         // Usa SQL direto porque os DAOs não estão disponíveis durante onCreate
         private val prepopulateCallback = object : RoomDatabase.Callback() {

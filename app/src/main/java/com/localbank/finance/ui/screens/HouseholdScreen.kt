@@ -27,7 +27,10 @@ import androidx.compose.ui.unit.sp
 import com.localbank.finance.auth.AuthManager
 import com.localbank.finance.sync.HouseholdManager
 import com.localbank.ui.theme.*
+import com.localbank.finance.data.database.AppDatabase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun HouseholdScreen(onHouseholdReady: () -> Unit) {
@@ -44,6 +47,24 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
     var codeInput by remember { mutableStateOf("") }
     var isJoining by remember { mutableStateOf(false) }
     var joinError by remember { mutableStateOf<String?>(null) }
+    var confirmJoin by remember { mutableStateOf(false) }
+
+    fun performJoin() {
+        isJoining = true
+        joinError = null
+        scope.launch {
+            try {
+                val success = HouseholdManager.joinHousehold(
+                    context, AuthManager.userId!!, AuthManager.displayName, codeInput
+                )
+                if (success) onHouseholdReady() else joinError = "Código inválido ou expirado"
+            } catch (e: Exception) {
+                joinError = "Erro: ${e.localizedMessage}"
+            } finally {
+                isJoining = false
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -239,22 +260,17 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                             isJoining = true
                             joinError = null
                             scope.launch {
-                                try {
-                                    val success = HouseholdManager.joinHousehold(
-                                        context,
-                                        AuthManager.userId!!,
-                                        AuthManager.displayName,
-                                        codeInput
-                                    )
-                                    if (success) {
-                                        onHouseholdReady()
-                                    } else {
-                                        joinError = "Código inválido ou expirado"
+                                // Se já há lançamentos neste celular, pede confirmação antes de substituí-los
+                                val hasLocal = try {
+                                    withContext(Dispatchers.IO) {
+                                        AppDatabase.getInstance(context).transactionDao().getAllOnce().isNotEmpty()
                                     }
-                                } catch (e: Exception) {
-                                    joinError = "Erro: ${e.localizedMessage}"
-                                } finally {
+                                } catch (_: Exception) { false }
+                                if (hasLocal) {
                                     isJoining = false
+                                    confirmJoin = true
+                                } else {
+                                    performJoin()
                                 }
                             }
                         },
@@ -278,6 +294,30 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                         Text("Voltar", color = OnDarkTextSecondary)
                     }
                 }
+            }
+
+            if (confirmJoin) {
+                AlertDialog(
+                    onDismissRequest = { confirmJoin = false },
+                    containerColor = DarkCard,
+                    title = { Text("Substituir dados deste celular?", color = OnDarkText) },
+                    text = {
+                        Text(
+                            "Este celular tem lançamentos que não estão no lar. Ao entrar, eles serão apagados e substituídos pelos dados do lar.",
+                            color = OnDarkTextSecondary
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { confirmJoin = false; performJoin() }) {
+                            Text("Entrar e substituir", color = Emerald)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmJoin = false }) {
+                            Text("Cancelar", color = OnDarkTextSecondary)
+                        }
+                    }
+                )
             }
 
             joinError?.let {

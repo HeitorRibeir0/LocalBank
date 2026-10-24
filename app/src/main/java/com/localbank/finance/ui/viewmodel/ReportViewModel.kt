@@ -79,7 +79,7 @@ internal fun buildReport(
     categories: List<Category>,
     selectedCal: Calendar
 ): ReportUiState {
-    val locale = Locale("pt", "BR")
+    val locale = Locale.forLanguageTag("pt-BR")
     val categoriesById = categories.associateBy { it.id }
 
     // ── Uma passada: totais de entrada e saída por mês ──

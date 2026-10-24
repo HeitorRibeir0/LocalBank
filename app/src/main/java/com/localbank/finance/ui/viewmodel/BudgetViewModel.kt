@@ -6,6 +6,7 @@ import com.localbank.finance.data.model.*
 import com.localbank.finance.data.repository.FinanceRepository
 import com.localbank.finance.util.DateRanges
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -24,54 +25,72 @@ data class BudgetUiState(
 
 class BudgetViewModel(private val repository: FinanceRepository) : ViewModel() {
 
-    private val currentMonthYear: String
-        get() = DateRanges.monthKey()
+    // Mês corrente é re-checado a cada minuto: se o app ficar aberto na virada do mês,
+    // a lista de orçamentos acompanha o mês novo (antes ficava presa no mês em que o ViewModel nasceu).
+    private val monthKeyFlow: Flow<String> = flow {
+        while (true) {
+            emit(DateRanges.monthKey())
+            delay(60_000)
+        }
+    }.distinctUntilChanged()
 
-    val uiState: StateFlow<BudgetUiState> = combine(
-        repository.getBudgetsByMonth(currentMonthYear),
-        repository.getAllCategories(),
-        repository.getAllTransactions()
-    ) { budgets, categories, transactions ->
+    val uiState: StateFlow<BudgetUiState> = monthKeyFlow.flatMapLatest { monthKey ->
+        combine(
+            repository.getBudgetsByMonth(monthKey),
+            repository.getAllCategories(),
+            repository.getAllTransactions()
+        ) { budgets, categories, transactions ->
 
-        val month = DateRanges.month()
-        val spentByCategory = transactions
-            .filter { it.type == TransactionType.EXPENSE && it.date in month }
-            .groupBy { it.categoryId }
-            .mapValues { (_, txns) -> txns.sumOf { it.amount } }
-        val categoriesById = categories.associateBy { it.id }
+            val month = DateRanges.month()
+            val spentByCategory = transactions
+                .filter { it.type == TransactionType.EXPENSE && it.date in month }
+                .groupBy { it.categoryId }
+                .mapValues { (_, txns) -> txns.sumOf { it.amount } }
+            val categoriesById = categories.associateBy { it.id }
 
-        val budgetsWithProgress = budgets.map { budget ->
-            val category = categoriesById[budget.categoryId]
-            val spent = spentByCategory[budget.categoryId] ?: 0.0
+            val budgetsWithProgress = budgets.map { budget ->
+                val category = categoriesById[budget.categoryId]
+                val spent = spentByCategory[budget.categoryId] ?: 0.0
 
-            BudgetWithProgress(
-                budget           = budget,
-                categoryName     = category?.name ?: "Sem categoria",
-                categoryColorHex = category?.colorHex ?: "#9E9E9E",
-                spent            = spent,
-                percentage       = if (budget.limitAmount > 0) (spent / budget.limitAmount).toFloat() else 0f
+                BudgetWithProgress(
+                    budget           = budget,
+                    categoryName     = category?.name ?: "Sem categoria",
+                    categoryColorHex = category?.colorHex ?: "#9E9E9E",
+                    spent            = spent,
+                    percentage       = if (budget.limitAmount > 0) (spent / budget.limitAmount).toFloat() else 0f
+                )
+            }.sortedByDescending { it.percentage }
+
+            BudgetUiState(
+                budgets    = budgetsWithProgress,
+                categories = categories
             )
-        }.sortedByDescending { it.percentage }
-
-        BudgetUiState(
-            budgets    = budgetsWithProgress,
-            categories = categories
-        )
+        }
     }.flowOn(Dispatchers.Default).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = BudgetUiState()
     )
 
+    /**
+     * Define o limite mensal da categoria. Se a categoria já tem limite neste mês,
+     * atualiza o existente em vez de criar um segundo (evita duplicidade).
+     */
     fun addBudget(categoryId: String, limitAmount: Double) {
         viewModelScope.launch {
-            repository.insertBudget(
-                Budget(
-                    categoryId  = categoryId,
-                    monthYear   = currentMonthYear,
-                    limitAmount = limitAmount
+            val monthKey = DateRanges.monthKey()
+            val existing = repository.getBudgetForCategory(categoryId, monthKey)
+            if (existing != null) {
+                repository.updateBudget(existing.copy(limitAmount = limitAmount))
+            } else {
+                repository.insertBudget(
+                    Budget(
+                        categoryId  = categoryId,
+                        monthYear   = monthKey,
+                        limitAmount = limitAmount
+                    )
                 )
-            )
+            }
         }
     }
 

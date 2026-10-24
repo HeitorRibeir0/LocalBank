@@ -55,7 +55,7 @@ fun DonutChart(
 
     var selectedIndex by remember(consolidated) { mutableStateOf<Int?>(null) }
 
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale("pt", "BR")) }
+    val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
 
     Column(
         modifier = modifier,

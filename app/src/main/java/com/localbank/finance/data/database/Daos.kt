@@ -22,7 +22,8 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE id = :id")
     suspend fun getById(id: String): Account?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // ABORT, não REPLACE: REPLACE apaga a conta antiga e o cascade apaga as transações dela
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(account: Account): Long
 
     @Update
@@ -43,7 +44,7 @@ interface AccountDao {
     @Query("UPDATE accounts SET balance = 0")
     suspend fun resetAllBalances()
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(accounts: List<Account>)
 
     // Saldo = soma das transações da conta. Recalcular em vez de aplicar deltas

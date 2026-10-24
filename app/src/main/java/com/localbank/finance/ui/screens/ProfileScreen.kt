@@ -25,10 +25,16 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import com.localbank.finance.auth.AuthManager
+import com.localbank.finance.data.database.AppDatabase
 import com.localbank.finance.sync.HouseholdManager
 import com.localbank.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +61,31 @@ fun ProfileScreen(
     var isJoining by remember { mutableStateOf(false) }
     var joinError by remember { mutableStateOf<String?>(null) }
     var joinSuccess by remember { mutableStateOf(false) }
+    var confirmJoin by remember { mutableStateOf(false) }
+    var inviteError by remember { mutableStateOf<String?>(null) }
+
+    // Entrar num lar: a activity é recriada para o sync reinicializar com o lar novo
+    fun performJoin() {
+        isJoining = true
+        joinError = null
+        scope.launch {
+            try {
+                val success = HouseholdManager.joinHousehold(
+                    context, AuthManager.userId!!, AuthManager.displayName, joinCode
+                )
+                if (success) {
+                    joinSuccess = true
+                    context.findActivity()?.recreate()
+                } else {
+                    joinError = "Código inválido ou expirado"
+                }
+            } catch (e: Exception) {
+                joinError = "Erro: ${e.localizedMessage}"
+            } finally {
+                isJoining = false
+            }
+        }
+    }
 
     var showClearConfirm by remember { mutableStateOf(false) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
@@ -270,15 +301,14 @@ fun ProfileScreen(
                             OutlinedButton(
                                 onClick = {
                                     isGenerating = true
+                                    inviteError = null
                                     scope.launch {
                                         try {
-                                            val code = HouseholdManager.createHousehold(
-                                                context,
-                                                AuthManager.userId!!,
-                                                AuthManager.displayName
-                                            )
-                                            newInviteCode = code
-                                        } catch (_: Exception) {}
+                                            // Convite para o lar ATUAL (não cria outro lar)
+                                            newInviteCode = HouseholdManager.createInvite(householdId)
+                                        } catch (e: Exception) {
+                                            inviteError = "Não foi possível gerar o convite: ${e.localizedMessage}"
+                                        }
                                         isGenerating = false
                                     }
                                 },
@@ -294,6 +324,10 @@ fun ProfileScreen(
                                     Spacer(Modifier.width(8.dp))
                                     Text("Gerar código de convite")
                                 }
+                            }
+                            inviteError?.let {
+                                Text(it, color = ExpenseRed, fontSize = 12.sp,
+                                    modifier = Modifier.padding(top = 6.dp))
                             }
                         }
                     } else {
@@ -514,23 +548,14 @@ fun ProfileScreen(
                             joinError = "O código tem 6 caracteres"
                             return@TextButton
                         }
-                        isJoining = true
-                        joinError = null
                         scope.launch {
-                            try {
-                                val success = HouseholdManager.joinHousehold(
-                                    context, AuthManager.userId!!,
-                                    AuthManager.displayName, joinCode
-                                )
-                                if (success) {
-                                    joinSuccess = true
-                                } else {
-                                    joinError = "Código inválido ou expirado"
+                            // Se já há lançamentos neste celular, pede confirmação antes de substituí-los
+                            val hasLocal = try {
+                                withContext(Dispatchers.IO) {
+                                    AppDatabase.getInstance(context).transactionDao().getAllOnce().isNotEmpty()
                                 }
-                            } catch (e: Exception) {
-                                joinError = "Erro: ${e.localizedMessage}"
-                            }
-                            isJoining = false
+                            } catch (_: Exception) { false }
+                            if (hasLocal) confirmJoin = true else performJoin()
                         }
                     },
                     enabled = !isJoining && joinCode.length == 6 && !joinSuccess
@@ -546,6 +571,40 @@ fun ProfileScreen(
             }
         )
     }
+
+    if (confirmJoin) {
+        AlertDialog(
+            onDismissRequest = { confirmJoin = false },
+            containerColor = DarkCard,
+            title = { Text("Substituir dados deste celular?", color = OnDarkText) },
+            text = {
+                Text(
+                    "Este celular tem lançamentos que não estão no lar. Ao entrar, eles serão apagados e substituídos pelos dados do lar.",
+                    color = OnDarkTextSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmJoin = false; performJoin() }) {
+                    Text("Entrar e substituir", color = appColors.primary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmJoin = false }) {
+                    Text("Cancelar", color = OnDarkTextSecondary)
+                }
+            }
+        )
+    }
+}
+
+/** O LocalContext do Compose pode ser um ContextWrapper; procura a Activity por trás dele. */
+private fun Context.findActivity(): Activity? {
+    var ctx: Context? = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }
 
 @Composable

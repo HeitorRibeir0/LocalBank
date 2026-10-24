@@ -44,9 +44,8 @@ import com.localbank.ui.theme.*
 import com.localbank.finance.ui.viewmodel.*
 import com.localbank.finance.worker.NotificationScheduler
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.MainScope
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -206,7 +205,8 @@ class MainActivity : ComponentActivity() {
                             budgetDao = db.budgetDao(),
                             savingsGoalDao = db.savingsGoalDao(),
                             syncManager = syncManager,
-                            householdId = householdId
+                            householdId = householdId,
+                            database = db
                         )
                     }
 
@@ -268,31 +268,35 @@ class MainActivity : ComponentActivity() {
                             savingsGoalViewModel = savingsVm,
                             onLogout = {
                                 syncManager.stopListening()
+                                HouseholdManager.clearHouseholdId(this@MainActivity)
+                                AuthManager.signOut(this@MainActivity)
                                 authState = "login"
+                                // Outra conta neste aparelho não pode ver os dados desta
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    db.clearAllTables()
+                                    AppDatabase.seedDefaults(db.openHelper.writableDatabase)
+                                }
                             },
                             onThemeChanged = onThemeChanged,
                             onClearData = {
-                                MainScope().launch {
-                                    withContext(Dispatchers.IO) {
-                                        db.transactionDao().deleteAll()
-                                        db.scheduledExpenseDao().deleteAll()
-                                        db.budgetDao().deleteAll()
-                                        db.accountDao().resetAllBalances()
-                                        try { syncManager.deleteHistoryRemote(householdId) } catch (_: Exception) {}
-                                    }
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    // Remoto primeiro: os IDs locais ainda existem aqui
+                                    try { syncManager.deleteHistoryRemote(householdId) } catch (_: Exception) {}
+                                    db.transactionDao().deleteAll()
+                                    db.scheduledExpenseDao().deleteAll()
+                                    db.budgetDao().deleteAll()
+                                    db.accountDao().resetAllBalances()
                                 }
                             },
                             onClearAllData = {
-                                MainScope().launch {
-                                    withContext(Dispatchers.IO) {
-                                        try { syncManager.deleteAllRemote(householdId) } catch (_: Exception) {}
-                                        db.transactionDao().deleteAll()
-                                        db.scheduledExpenseDao().deleteAll()
-                                        db.budgetDao().deleteAll()
-                                        db.savingsGoalDao().deleteAll()
-                                        db.categoryDao().deleteAll()
-                                        db.accountDao().deleteAll()
-                                    }
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    try { syncManager.deleteAllRemote(householdId) } catch (_: Exception) {}
+                                    db.transactionDao().deleteAll()
+                                    db.scheduledExpenseDao().deleteAll()
+                                    db.budgetDao().deleteAll()
+                                    db.savingsGoalDao().deleteAll()
+                                    db.categoryDao().deleteAll()
+                                    db.accountDao().deleteAll()
                                 }
                             }
                         )

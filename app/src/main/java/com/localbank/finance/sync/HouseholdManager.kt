@@ -18,6 +18,7 @@ object HouseholdManager {
     private const val KEY_HOUSEHOLD_ID = "household_id"
     private const val KEY_NEEDS_DOWNLOAD = "needs_initial_download"
     private const val KEY_UPLOAD_DONE = "initial_upload_done"
+    private const val MAX_MEMBERS = 5
 
     private val db = FirebaseFirestore.getInstance()
 
@@ -140,6 +141,32 @@ object HouseholdManager {
     }
 
     /**
+     * Gera um novo código de convite para o lar ATUAL (sem criar outro lar).
+     * O código anterior, se existir, é invalidado.
+     */
+    suspend fun createInvite(householdId: String): String {
+        val householdRef = db.collection("households").document(householdId)
+        val oldCode = householdRef.get().await().getString("inviteCode")
+
+        val inviteCode = generateInviteCode()
+        householdRef.update(
+            mapOf(
+                "inviteCode" to inviteCode,
+                "inviteExpiresAt" to (System.currentTimeMillis() + 1 * 60 * 60 * 1000) // 1 hora
+            )
+        ).await()
+
+        db.collection("invites").document(inviteCode).set(
+            hashMapOf("householdId" to householdId)
+        ).await()
+
+        if (oldCode != null && oldCode != inviteCode) {
+            db.collection("invites").document(oldCode).delete().await()
+        }
+        return inviteCode
+    }
+
+    /**
      * Entra num lar existente. Após uso, o convite é invalidado.
      */
     suspend fun joinHousehold(
@@ -170,27 +197,26 @@ object HouseholdManager {
         val expiresAt = householdDoc.getLong("inviteExpiresAt") ?: 0
         if (System.currentTimeMillis() > expiresAt) return false
 
-        // Verificar limite de membros (máximo 5)
-        val currentMembers = householdDoc.get("members") as? List<*> ?: emptyList<String>()
-        if (currentMembers.size >= 5) return false
-
-        // Verificar se já é membro
-        if (currentMembers.contains(userId)) {
+        // Entrada numa transação: duas pessoas entrando ao mesmo tempo não passam do limite.
+        // Resultado: 0 = recusado, 1 = entrou agora, 2 = já era membro.
+        val householdRef = db.collection("households").document(householdId)
+        val result = db.runTransaction<Int> { tx ->
+            val snap = tx.get(householdRef)
+            if (!snap.exists()) return@runTransaction 0
+            val members = ((snap.get("members") as? List<*>) ?: emptyList<Any?>()).map { it.toString() }
+            if (members.contains(userId)) return@runTransaction 2
+            if (members.size >= MAX_MEMBERS) return@runTransaction 0
+            val names = HashMap<String, Any?>()
+            (snap.get("memberNames") as? Map<*, *>)?.forEach { (k, v) -> names[k.toString()] = v }
+            names[userId] = displayName
+            tx.update(householdRef, mapOf("members" to members + userId, "memberNames" to names))
+            1
+        }.await()
+        if (result == 0) return false
+        if (result == 2) {
             saveHouseholdId(context, householdId)
             return true
         }
-
-        val currentNames = householdDoc.get("memberNames") as? Map<*, *> ?: emptyMap<String, String>()
-
-        val updatedMembers = currentMembers.toMutableList().apply { add(userId) }
-        val updatedNames = currentNames.toMutableMap().apply { put(userId, displayName) }
-
-        db.collection("households").document(householdId).update(
-            mapOf(
-                "members" to updatedMembers,
-                "memberNames" to updatedNames
-            )
-        ).await()
 
         // Invalidar convite (uso único)
         db.collection("invites").document(cleanCode).delete().await()
