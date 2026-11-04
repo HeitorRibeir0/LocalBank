@@ -95,7 +95,6 @@ internal fun buildDashboard(
     now: Calendar
 ): DashboardUiState {
     val nowMs = now.timeInMillis
-    val DAY_MS = 24L * 60 * 60 * 1000
     val month = DateRanges.month(now)
     val monthTransactions = transactions.filter { it.date in month }
     val categoriesById = categories.associateBy { it.id }
@@ -123,7 +122,7 @@ internal fun buildDashboard(
 
     // ── Vencimentos ──
     val (urgent, upcoming) = pending
-        .filter { it.dueDate <= nowMs + 30 * DAY_MS }
+        .filter { DateRanges.daysUntil(it.dueDate, nowMs) <= 30 }
         .sortedBy { it.dueDate }
         .partition { DateRanges.daysUntil(it.dueDate, nowMs) <= 3 }
 

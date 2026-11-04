@@ -358,8 +358,10 @@ class FinanceRepository(
     // ─────────────────────────────────────────────
 
     private fun syncPush(action: (FirestoreSyncManager) -> Unit) {
-        if (syncManager != null && householdId != null) {
-            try { action(syncManager) } catch (_: Exception) { /* silently fail — offline first */ }
+        val sync = syncManager ?: return
+        val hid = householdId ?: return
+        try { action(sync) } catch (e: Exception) {
+            android.util.Log.w("FinanceRepository", "Sync failed (offline first): ${e.message}", e)
         }
     }
 }
