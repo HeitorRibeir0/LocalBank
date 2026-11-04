@@ -122,24 +122,24 @@ fun DonutChart(
                         text = String.format(PtBr, "%.1f%%", active.value / total * 100),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = OnDarkText
+                        color = LocalAppColors.current.textPrimary
                     )
                     Text(
                         text = active.label,
                         fontSize = 11.sp,
-                        color = OnDarkTextSecondary
+                        color = LocalAppColors.current.textSecondary
                     )
                 } else {
                     Text(
                         text = currency.format(total),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = OnDarkText
+                        color = LocalAppColors.current.textPrimary
                     )
                     Text(
                         text = "total",
                         fontSize = 11.sp,
-                        color = OnDarkTextSecondary
+                        color = LocalAppColors.current.textSecondary
                     )
                 }
             }
@@ -175,19 +175,19 @@ fun DonutChart(
                     modifier = Modifier.weight(1f),
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = OnDarkText.copy(alpha = rowAlpha)
+                    color = LocalAppColors.current.textPrimary.copy(alpha = rowAlpha)
                 )
                 Text(
                     text = currency.format(slice.value),
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                    color = OnDarkText.copy(alpha = rowAlpha)
+                    color = LocalAppColors.current.textPrimary.copy(alpha = rowAlpha)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = String.format(PtBr, "%.1f%%", slice.value / total * 100),
                     fontSize = 12.sp,
-                    color = OnDarkTextSecondary.copy(alpha = rowAlpha),
+                    color = LocalAppColors.current.textSecondary.copy(alpha = rowAlpha),
                     modifier = Modifier.width(36.dp),
                 )
             }

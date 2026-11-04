@@ -86,15 +86,15 @@ fun BudgetScreen(viewModel: BudgetViewModel) {
 fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     val color = when {
-        item.percentage >= 1.0f -> ExpenseRed
-        item.percentage >= 0.8f -> WarningAmber
-        else                    -> IncomeGreen
+        item.percentage >= 1.0f -> LocalAppColors.current.error
+        item.percentage >= 0.8f -> LocalAppColors.current.warning
+        else                    -> LocalAppColors.current.success
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        colors = CardDefaults.cardColors(containerColor = LocalAppColors.current.card),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -110,14 +110,14 @@ fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () ->
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(item.categoryName, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = OnDarkText)
+                        Text(item.categoryName, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = LocalAppColors.current.textPrimary)
                         Text("${currency.cents(item.spentCents)} / ${currency.cents(item.budget.limitCents)}",
-                            fontSize = 13.sp, color = OnDarkTextSecondary)
+                            fontSize = 13.sp, color = LocalAppColors.current.textSecondary)
                     }
                     Text("${(item.percentage * 100).toInt()}%", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = color)
                     IconButton(onClick = { showDeleteDialog = true }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Default.Delete, "Excluir", modifier = Modifier.size(20.dp),
-                            tint = OnDarkTextSecondary.copy(alpha = 0.6f))
+                            tint = LocalAppColors.current.textSecondary.copy(alpha = 0.6f))
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -125,12 +125,12 @@ fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () ->
                     progress = { item.percentage.coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                     color = color,
-                    trackColor = DarkSurfaceVariant
+                    trackColor = LocalAppColors.current.surfaceVariant
                 )
                 if (item.percentage >= 1.0f) {
                     Spacer(Modifier.height(6.dp))
                     Text("⚠ Estourado em ${currency.cents(item.spentCents - item.budget.limitCents)}",
-                        fontSize = 12.sp, color = ExpenseRed, fontWeight = FontWeight.Medium)
+                        fontSize = 12.sp, color = LocalAppColors.current.error, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -139,17 +139,17 @@ fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () ->
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            containerColor = DarkCard,
-            title = { Text("Excluir orçamento?", color = OnDarkText) },
-            text = { Text("Orçamento de \"${item.categoryName}\" será removido.", color = OnDarkTextSecondary) },
+            containerColor = LocalAppColors.current.card,
+            title = { Text("Excluir orçamento?", color = LocalAppColors.current.textPrimary) },
+            text = { Text("Orçamento de \"${item.categoryName}\" será removido.", color = LocalAppColors.current.textSecondary) },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete()
                     showDeleteDialog = false
-                }) { Text("Excluir", color = ExpenseRed) }
+                }) { Text("Excluir", color = LocalAppColors.current.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar", color = OnDarkTextSecondary) }
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar", color = LocalAppColors.current.textSecondary) }
             }
         )
     }
@@ -167,8 +167,8 @@ fun AddBudgetDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text("Novo orçamento", color = OnDarkText) },
+        containerColor = LocalAppColors.current.card,
+        title = { Text("Novo orçamento", color = LocalAppColors.current.textPrimary) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -185,7 +185,7 @@ fun AddBudgetDialog(
                 )
                 if (showError) {
                     Text(if (selected == null) "Selecione uma categoria" else "Preencha o valor",
-                        color = ExpenseRed, style = MaterialTheme.typography.bodySmall)
+                        color = LocalAppColors.current.error, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -197,6 +197,6 @@ fun AddBudgetDialog(
                 else showError = true
             }) { Text("Criar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = LocalAppColors.current.textSecondary) } }
     )
 }

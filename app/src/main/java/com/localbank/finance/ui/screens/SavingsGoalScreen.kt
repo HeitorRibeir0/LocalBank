@@ -272,15 +272,15 @@ private fun DepositDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text("Depositar em \"${goal.name}\"", color = OnDarkText,
+        containerColor = LocalAppColors.current.card,
+        title = { Text("Depositar em \"${goal.name}\"", color = LocalAppColors.current.textPrimary,
             fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Faltam ${currency.cents(remaining)} para a meta.",
-                    color = OnDarkTextSecondary, fontSize = 13.sp)
+                    color = LocalAppColors.current.textSecondary, fontSize = 13.sp)
                 CurrencyField(
                     rawValue = amountRaw,
                     onRawValueChange = { amountRaw = it },
@@ -297,7 +297,7 @@ private fun DepositDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) }
+            TextButton(onClick = onDismiss) { Text("Cancelar", color = LocalAppColors.current.textSecondary) }
         }
     )
 }
@@ -327,8 +327,8 @@ private fun GoalFormDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text(title, color = OnDarkText, fontWeight = FontWeight.Bold) },
+        containerColor = LocalAppColors.current.card,
+        title = { Text(title, color = LocalAppColors.current.textPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -364,7 +364,7 @@ private fun GoalFormDialog(
                     )
                 )
 
-                Text("Cor:", fontSize = 13.sp, color = OnDarkTextSecondary)
+                Text("Cor:", fontSize = 13.sp, color = LocalAppColors.current.textSecondary)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(colors) { hex ->
                         val color = try { Color(android.graphics.Color.parseColor(hex)) }
@@ -385,7 +385,7 @@ private fun GoalFormDialog(
                 }
 
                 if (showError) {
-                    Text("Preencha nome e valor", color = ExpenseRed,
+                    Text("Preencha nome e valor", color = LocalAppColors.current.error,
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -404,7 +404,7 @@ private fun GoalFormDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) }
+            TextButton(onClick = onDismiss) { Text("Cancelar", color = LocalAppColors.current.textSecondary) }
         }
     )
 }

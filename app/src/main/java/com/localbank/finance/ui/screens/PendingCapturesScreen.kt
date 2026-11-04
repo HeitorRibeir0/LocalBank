@@ -80,7 +80,7 @@ fun PendingCapturesScreen(
                 title = { Text("Compras capturadas", color = appColors.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = OnDarkTextSecondary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = LocalAppColors.current.textSecondary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = appColors.background)
@@ -240,7 +240,7 @@ private fun CaptureCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onDiscard) {
-                    Text("Descartar", color = OnDarkTextSecondary)
+                    Text("Descartar", color = LocalAppColors.current.textSecondary)
                 }
                 Spacer(Modifier.width(8.dp))
                 Button(

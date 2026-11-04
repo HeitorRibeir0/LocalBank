@@ -42,17 +42,17 @@ fun AccountsScreen(
     var deleteWarning by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     Scaffold(
-        containerColor = DarkBg,
+        containerColor = LocalAppColors.current.background,
         topBar = {
             TopAppBar(
-                title = { Text("Minhas contas", color = OnDarkText) },
+                title = { Text("Minhas contas", color = LocalAppColors.current.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = OnDarkTextSecondary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = LocalAppColors.current.textSecondary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBg
+                    containerColor = LocalAppColors.current.background
                 )
             )
         },
@@ -71,10 +71,10 @@ fun AccountsScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.AccountBalance, null, Modifier.size(64.dp),
-                        tint = OnDarkTextSecondary.copy(alpha = 0.3f))
+                        tint = LocalAppColors.current.textSecondary.copy(alpha = 0.3f))
                     Spacer(Modifier.height(16.dp))
                     Text("Nenhuma conta cadastrada.\nToque no + para adicionar.",
-                        color = OnDarkTextSecondary,
+                        color = LocalAppColors.current.textSecondary,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
@@ -91,7 +91,7 @@ fun AccountsScreen(
                 if (archived.isNotEmpty()) {
                     item {
                         Text("Arquivadas", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                            color = OnDarkTextSecondary, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+                            color = LocalAppColors.current.textSecondary, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
                     }
                     items(archived, key = { it.id }) { account ->
                         AccountCard(account = account, currency = currency,
@@ -134,16 +134,16 @@ fun AccountsScreen(
 
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null; deleteWarning = null },
-            containerColor = DarkCard,
-            title = { Text(if (canArchive) "Arquivar ou excluir \"${account.name}\"?" else "Excluir \"${account.name}\"?", color = OnDarkText) },
-            text = { Text(warning, color = OnDarkTextSecondary) },
+            containerColor = LocalAppColors.current.card,
+            title = { Text(if (canArchive) "Arquivar ou excluir \"${account.name}\"?" else "Excluir \"${account.name}\"?", color = LocalAppColors.current.textPrimary) },
+            text = { Text(warning, color = LocalAppColors.current.textSecondary) },
             confirmButton = {
                 Row {
                     TextButton(onClick = {
                         viewModel.deleteAccount(account)
                         showDeleteDialog = null
                         deleteWarning = null
-                    }) { Text("Excluir", color = ExpenseRed) }
+                    }) { Text("Excluir", color = LocalAppColors.current.error) }
                     if (canArchive) {
                         TextButton(onClick = {
                             viewModel.setAccountArchived(account, true)
@@ -155,7 +155,7 @@ fun AccountsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = null; deleteWarning = null }) {
-                    Text("Cancelar", color = OnDarkTextSecondary)
+                    Text("Cancelar", color = LocalAppColors.current.textSecondary)
                 }
             }
         )
@@ -179,7 +179,7 @@ fun AccountCard(account: Account, currency: NumberFormat, onDelete: () -> Unit, 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        colors = CardDefaults.cardColors(containerColor = LocalAppColors.current.card),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -194,9 +194,9 @@ fun AccountCard(account: Account, currency: NumberFormat, onDelete: () -> Unit, 
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(account.name, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = OnDarkText)
+                Text(account.name, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = LocalAppColors.current.textPrimary)
                 Text(if (account.archived) "$typeLabel · arquivada" else typeLabel,
-                    fontSize = 12.sp, color = OnDarkTextSecondary)
+                    fontSize = 12.sp, color = LocalAppColors.current.textSecondary)
                 if (onUnarchive != null) {
                     TextButton(onClick = onUnarchive, contentPadding = PaddingValues(0.dp)) {
                         Text("Desarquivar", fontSize = 13.sp, color = appColors.primary)
@@ -207,11 +207,11 @@ fun AccountCard(account: Account, currency: NumberFormat, onDelete: () -> Unit, 
                 Text(
                     currency.cents(account.balanceCents),
                     fontWeight = FontWeight.Bold,
-                    color = if (account.balanceCents >= 0) IncomeGreen else ExpenseRed
+                    color = if (account.balanceCents >= 0) LocalAppColors.current.success else LocalAppColors.current.error
                 )
                 IconButton(onClick = onDelete, modifier = Modifier.minimumInteractiveComponentSize()) {
                     Icon(Icons.Default.Delete, "Excluir", modifier = Modifier.size(20.dp),
-                        tint = OnDarkTextSecondary.copy(alpha = 0.6f))
+                        tint = LocalAppColors.current.textSecondary.copy(alpha = 0.6f))
                 }
             }
         }
@@ -238,8 +238,8 @@ fun AddAccountDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text("Nova conta", color = OnDarkText) },
+        containerColor = LocalAppColors.current.card,
+        title = { Text("Nova conta", color = LocalAppColors.current.textPrimary) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -263,7 +263,7 @@ fun AddAccountDialog(
                     itemLabel = typeLabel
                 )
                 if (showError) {
-                    Text("Preencha o nome", color = ExpenseRed,
+                    Text("Preencha o nome", color = LocalAppColors.current.error,
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -274,6 +274,6 @@ fun AddAccountDialog(
                 onConfirm(name.trim(), selectedType)
             }) { Text("Criar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = LocalAppColors.current.textSecondary) } }
     )
 }

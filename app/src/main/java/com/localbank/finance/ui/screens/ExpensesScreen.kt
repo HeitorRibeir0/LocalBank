@@ -84,7 +84,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     val categoryNames = remember(categories) { categories.associate { it.id to it.displayName } }
 
     Scaffold(
-        containerColor = DarkBg
+        containerColor = LocalAppColors.current.background
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
@@ -102,14 +102,14 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                         c.add(Calendar.MONTH, -1)
                         selectedCal.value = c
                     }) {
-                        Icon(Icons.Default.ChevronLeft, "Mês anterior", tint = OnDarkTextSecondary)
+                        Icon(Icons.Default.ChevronLeft, "Mês anterior", tint = LocalAppColors.current.textSecondary)
                     }
                     Text(
                         text = monthSdf.format(selectedCal.value.time)
                             .replaceFirstChar { it.uppercase() },
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 16.sp,
-                        color = if (isCurrentMonth) appColors.primary else OnDarkText,
+                        color = if (isCurrentMonth) appColors.primary else LocalAppColors.current.textPrimary,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
                     IconButton(
@@ -121,8 +121,8 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                         enabled = !isCurrentMonth
                     ) {
                         Icon(Icons.Default.ChevronRight, "Próximo mês",
-                            tint = if (isCurrentMonth) OnDarkTextSecondary.copy(alpha = 0.3f)
-                                   else OnDarkTextSecondary)
+                            tint = if (isCurrentMonth) LocalAppColors.current.textSecondary.copy(alpha = 0.3f)
+                                   else LocalAppColors.current.textSecondary)
                     }
                 }
             }
@@ -138,12 +138,12 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                             Icon(
                                 Icons.Default.SwapVert, null,
                                 Modifier.size(64.dp),
-                                tint = OnDarkTextSecondary.copy(alpha = 0.4f)
+                                tint = LocalAppColors.current.textSecondary.copy(alpha = 0.4f)
                             )
                             Spacer(Modifier.height(16.dp))
                             Text(
                                 "Nenhum lançamento neste mês.\nToque em Lançar para adicionar.",
-                                color = OnDarkTextSecondary,
+                                color = LocalAppColors.current.textSecondary,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                         }
@@ -154,7 +154,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                 if (pendingScheduled.isNotEmpty()) {
                     item {
                         Text("Agendadas pendentes", fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp, color = OnDarkText)
+                            fontSize = 16.sp, color = LocalAppColors.current.textPrimary)
                     }
                     items(pendingScheduled, key = { "scheduled-${it.id}" }) { expense ->
                         ScheduledCard(
@@ -170,7 +170,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                 if (paidScheduled.isNotEmpty()) {
                     item {
                         Text("Agendadas pagas", fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp, color = OnDarkTextSecondary)
+                            fontSize = 16.sp, color = LocalAppColors.current.textSecondary)
                     }
                     items(paidScheduled, key = { "scheduled-${it.id}" }) { expense ->
                         ScheduledCard(
@@ -186,7 +186,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                 if (filteredTransactions.isNotEmpty()) {
                     item {
                         Text("Histórico", fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp, color = OnDarkText)
+                            fontSize = 16.sp, color = LocalAppColors.current.textPrimary)
                     }
                     items(filteredTransactions, key = { "tx-${it.id}" }) { tx ->
                         TransactionCard(
@@ -205,30 +205,30 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     showDeleteTx?.let { tx ->
         AlertDialog(
             onDismissRequest = { showDeleteTx = null },
-            containerColor = DarkCard,
-            title = { Text("Excluir transação?", color = OnDarkText) },
-            text = { Text("\"${tx.description.ifBlank { "Sem descrição" }}\" será removida.", color = OnDarkTextSecondary) },
+            containerColor = LocalAppColors.current.card,
+            title = { Text("Excluir transação?", color = LocalAppColors.current.textPrimary) },
+            text = { Text("\"${tx.description.ifBlank { "Sem descrição" }}\" será removida.", color = LocalAppColors.current.textSecondary) },
             confirmButton = {
                 TextButton(onClick = { viewModel.deleteTransaction(tx); showDeleteTx = null }) {
-                    Text("Excluir", color = ExpenseRed)
+                    Text("Excluir", color = LocalAppColors.current.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { showDeleteTx = null }) { Text("Cancelar", color = OnDarkTextSecondary) } }
+            dismissButton = { TextButton(onClick = { showDeleteTx = null }) { Text("Cancelar", color = LocalAppColors.current.textSecondary) } }
         )
     }
 
     showDeleteScheduled?.let { expense ->
         AlertDialog(
             onDismissRequest = { showDeleteScheduled = null },
-            containerColor = DarkCard,
-            title = { Text("Excluir \"${expense.description}\"?", color = OnDarkText) },
-            text = { Text("Esta conta será removida para todos do lar.\nIsso não pode ser desfeito.", color = OnDarkTextSecondary) },
+            containerColor = LocalAppColors.current.card,
+            title = { Text("Excluir \"${expense.description}\"?", color = LocalAppColors.current.textPrimary) },
+            text = { Text("Esta conta será removida para todos do lar.\nIsso não pode ser desfeito.", color = LocalAppColors.current.textSecondary) },
             confirmButton = {
                 TextButton(onClick = { viewModel.deleteScheduledExpense(expense); showDeleteScheduled = null }) {
-                    Text("Excluir", color = ExpenseRed)
+                    Text("Excluir", color = LocalAppColors.current.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { showDeleteScheduled = null }) { Text("Cancelar", color = OnDarkTextSecondary) } }
+            dismissButton = { TextButton(onClick = { showDeleteScheduled = null }) { Text("Cancelar", color = LocalAppColors.current.textSecondary) } }
         )
     }
 
@@ -409,8 +409,8 @@ fun AddCategoryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text("Nova categoria (${if (type == TransactionType.INCOME) "entrada" else "saída"})", color = OnDarkText) },
+        containerColor = LocalAppColors.current.card,
+        title = { Text("Nova categoria (${if (type == TransactionType.INCOME) "entrada" else "saída"})", color = LocalAppColors.current.textPrimary) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -426,7 +426,7 @@ fun AddCategoryDialog(
                         cursorColor = appColors.primary
                     )
                 )
-                Text("Cor:", fontSize = 13.sp, color = OnDarkTextSecondary)
+                Text("Cor:", fontSize = 13.sp, color = LocalAppColors.current.textSecondary)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(colors) { hex ->
                         val color = try { Color(android.graphics.Color.parseColor(hex)) }
@@ -446,7 +446,7 @@ fun AddCategoryDialog(
                     }
                 }
                 if (showError && name.isBlank()) {
-                    Text("Preencha o nome", color = ExpenseRed,
+                    Text("Preencha o nome", color = LocalAppColors.current.error,
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -457,7 +457,7 @@ fun AddCategoryDialog(
                 onConfirm(name.trim(), selectedColor)
             }) { Text("Criar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = LocalAppColors.current.textSecondary) } }
     )
 }
 
@@ -484,8 +484,8 @@ fun EditScheduledDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text("Editar agendada", color = OnDarkText, fontWeight = FontWeight.Bold) },
+        containerColor = LocalAppColors.current.card,
+        title = { Text("Editar agendada", color = LocalAppColors.current.textPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -540,7 +540,7 @@ fun EditScheduledDialog(
                             checkmarkColor = appColors.onPrimary
                         )
                     )
-                    Text("Recorrente", color = OnDarkText)
+                    Text("Recorrente", color = LocalAppColors.current.textPrimary)
                 }
 
                 if (isRecurring) {
@@ -560,7 +560,7 @@ fun EditScheduledDialog(
                 }
 
                 if (showError) {
-                    Text("Verifique os campos", color = ExpenseRed,
+                    Text("Verifique os campos", color = LocalAppColors.current.error,
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -584,7 +584,7 @@ fun EditScheduledDialog(
                 )
             }) { Text("Salvar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = LocalAppColors.current.textSecondary) } }
     )
 }
 
@@ -610,8 +610,8 @@ fun EditTransactionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text("Editar transação", color = OnDarkText, fontWeight = FontWeight.Bold) },
+        containerColor = LocalAppColors.current.card,
+        title = { Text("Editar transação", color = LocalAppColors.current.textPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -622,16 +622,16 @@ fun EditTransactionDialog(
                         selected = !isIncome, onClick = { isIncome = false },
                         label = { Text("Saída") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = ExpenseRed.copy(alpha = 0.2f),
-                            selectedLabelColor = ExpenseRed
+                            selectedContainerColor = LocalAppColors.current.error.copy(alpha = 0.2f),
+                            selectedLabelColor = LocalAppColors.current.error
                         )
                     )
                     FilterChip(
                         selected = isIncome, onClick = { isIncome = true },
                         label = { Text("Entrada") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = IncomeGreen.copy(alpha = 0.2f),
-                            selectedLabelColor = IncomeGreen
+                            selectedContainerColor = LocalAppColors.current.success.copy(alpha = 0.2f),
+                            selectedLabelColor = LocalAppColors.current.success
                         )
                     )
                 }
@@ -676,7 +676,7 @@ fun EditTransactionDialog(
                 )
 
                 if (showError) {
-                    Text("Preencha conta e valor", color = ExpenseRed,
+                    Text("Preencha conta e valor", color = LocalAppColors.current.error,
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -697,6 +697,6 @@ fun EditTransactionDialog(
                 )
             }) { Text("Salvar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = OnDarkTextSecondary) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = LocalAppColors.current.textSecondary) } }
     )
 }

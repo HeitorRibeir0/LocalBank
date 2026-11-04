@@ -70,7 +70,7 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .safeDrawingPadding()
-            .background(DarkBg)
+            .background(LocalAppColors.current.background)
             .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -101,13 +101,13 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                 text = "Olá, ${AuthManager.displayName}!",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = OnDarkText
+                color = LocalAppColors.current.textPrimary
             )
 
             Text(
                 text = "Crie um lar para gerenciar finanças\nou entre no lar do seu parceiro(a)",
                 textAlign = TextAlign.Center,
-                color = OnDarkTextSecondary,
+                color = LocalAppColors.current.textSecondary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp
             )
@@ -143,9 +143,9 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Emerald,
-                        contentColor = OnEmerald,
-                        disabledContainerColor = Emerald.copy(alpha = 0.4f)
+                        containerColor = LocalAppColors.current.brandPrimary,
+                        contentColor = LocalAppColors.current.onBrandPrimary,
+                        disabledContainerColor = LocalAppColors.current.brandPrimary.copy(alpha = 0.4f)
                     )
                 ) {
                     if (isCreating) {
@@ -162,34 +162,34 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = DarkCard)
+                        colors = CardDefaults.cardColors(containerColor = LocalAppColors.current.card)
                     ) {
                         Column(
                             modifier = Modifier.padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("Lar criado! Compartilhe o código:", fontSize = 14.sp, color = OnDarkTextSecondary)
+                            Text("Lar criado! Compartilhe o código:", fontSize = 14.sp, color = LocalAppColors.current.textSecondary)
                             Spacer(Modifier.height(12.dp))
                             Text(
                                 text = code,
                                 fontSize = 36.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 6.sp,
-                                color = Emerald
+                                color = LocalAppColors.current.brandPrimary
                             )
                             Spacer(Modifier.height(8.dp))
                             TextButton(onClick = {
                                 clipboardManager.setText(AnnotatedString(code))
                             }) {
-                                Icon(Icons.Default.ContentCopy, null, Modifier.size(16.dp), tint = Emerald)
+                                Icon(Icons.Default.ContentCopy, null, Modifier.size(16.dp), tint = LocalAppColors.current.brandPrimary)
                                 Spacer(Modifier.width(4.dp))
-                                Text("Copiar código", color = Emerald)
+                                Text("Copiar código", color = LocalAppColors.current.brandPrimary)
                             }
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 "Válido por 1 hora",
                                 fontSize = 12.sp,
-                                color = OnDarkTextSecondary
+                                color = LocalAppColors.current.textSecondary
                             )
                             Spacer(Modifier.height(16.dp))
                             Button(
@@ -197,8 +197,8 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Emerald,
-                                    contentColor = OnEmerald
+                                    containerColor = LocalAppColors.current.brandPrimary,
+                                    contentColor = LocalAppColors.current.onBrandPrimary
                                 )
                             ) {
                                 Text("Continuar para o app", fontWeight = FontWeight.SemiBold)
@@ -214,9 +214,9 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    HorizontalDivider(Modifier.weight(1f), color = DarkSurfaceVariant)
-                    Text("  ou  ", color = OnDarkTextSecondary, fontSize = 13.sp)
-                    HorizontalDivider(Modifier.weight(1f), color = DarkSurfaceVariant)
+                    HorizontalDivider(Modifier.weight(1f), color = LocalAppColors.current.surfaceVariant)
+                    Text("  ou  ", color = LocalAppColors.current.textSecondary, fontSize = 13.sp)
+                    HorizontalDivider(Modifier.weight(1f), color = LocalAppColors.current.surfaceVariant)
                 }
 
                 // ── ENTRAR NO LAR ──
@@ -227,9 +227,9 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Emerald
+                            contentColor = LocalAppColors.current.brandPrimary
                         ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Emerald.copy(alpha = 0.5f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, LocalAppColors.current.brandPrimary.copy(alpha = 0.5f))
                     ) {
                         Icon(Icons.Default.People, null, Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
@@ -246,9 +246,9 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Emerald,
-                            focusedLabelColor = Emerald,
-                            cursorColor = Emerald
+                            focusedBorderColor = LocalAppColors.current.brandPrimary,
+                            focusedLabelColor = LocalAppColors.current.brandPrimary,
+                            cursorColor = LocalAppColors.current.brandPrimary
                         )
                     )
 
@@ -279,9 +279,9 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Emerald,
-                            contentColor = OnEmerald,
-                            disabledContainerColor = Emerald.copy(alpha = 0.4f)
+                            containerColor = LocalAppColors.current.brandPrimary,
+                            contentColor = LocalAppColors.current.onBrandPrimary,
+                            disabledContainerColor = LocalAppColors.current.brandPrimary.copy(alpha = 0.4f)
                         )
                     ) {
                         if (isJoining) {
@@ -292,7 +292,7 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                     }
 
                     TextButton(onClick = { showJoin = false; codeInput = ""; joinError = null }) {
-                        Text("Voltar", color = OnDarkTextSecondary)
+                        Text("Voltar", color = LocalAppColors.current.textSecondary)
                     }
                 }
             }
@@ -300,22 +300,22 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
             if (confirmJoin) {
                 AlertDialog(
                     onDismissRequest = { confirmJoin = false },
-                    containerColor = DarkCard,
-                    title = { Text("Substituir dados deste celular?", color = OnDarkText) },
+                    containerColor = LocalAppColors.current.card,
+                    title = { Text("Substituir dados deste celular?", color = LocalAppColors.current.textPrimary) },
                     text = {
                         Text(
                             "Este celular tem lançamentos que não estão no lar. Ao entrar, eles serão apagados e substituídos pelos dados do lar.",
-                            color = OnDarkTextSecondary
+                            color = LocalAppColors.current.textSecondary
                         )
                     },
                     confirmButton = {
                         TextButton(onClick = { confirmJoin = false; performJoin() }) {
-                            Text("Entrar e substituir", color = Emerald)
+                            Text("Entrar e substituir", color = LocalAppColors.current.brandPrimary)
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { confirmJoin = false }) {
-                            Text("Cancelar", color = OnDarkTextSecondary)
+                            Text("Cancelar", color = LocalAppColors.current.textSecondary)
                         }
                     }
                 )
@@ -323,10 +323,10 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
 
             joinError?.let {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = ExpenseRed.copy(alpha = 0.12f)),
+                    colors = CardDefaults.cardColors(containerColor = LocalAppColors.current.error.copy(alpha = 0.12f)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(it, color = ExpenseRed, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+                    Text(it, color = LocalAppColors.current.error, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
                 }
             }
         }

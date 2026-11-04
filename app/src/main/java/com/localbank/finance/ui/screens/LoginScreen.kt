@@ -34,7 +34,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBg)
+            .background(LocalAppColors.current.background)
             .safeDrawingPadding()
             .padding(32.dp),
         contentAlignment = Alignment.Center
@@ -67,13 +67,13 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 text = "LocalBank",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
-                color = OnDarkText
+                color = LocalAppColors.current.textPrimary
             )
 
             Text(
                 text = "Gerencie as finanças da casa\njunto com seu parceiro(a)",
                 textAlign = TextAlign.Center,
-                color = OnDarkTextSecondary,
+                color = LocalAppColors.current.textSecondary,
                 fontSize = 15.sp,
                 lineHeight = 22.sp
             )
@@ -105,9 +105,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     .height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Emerald,
-                    contentColor = OnEmerald,
-                    disabledContainerColor = Emerald.copy(alpha = 0.4f)
+                    containerColor = LocalAppColors.current.brandPrimary,
+                    contentColor = LocalAppColors.current.onBrandPrimary,
+                    disabledContainerColor = LocalAppColors.current.brandPrimary.copy(alpha = 0.4f)
                 ),
                 elevation = ButtonDefaults.buttonElevation(
                     defaultElevation = 4.dp
@@ -131,13 +131,13 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             errorMessage?.let {
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = ExpenseRed.copy(alpha = 0.12f)
+                        containerColor = LocalAppColors.current.error.copy(alpha = 0.12f)
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = it,
-                        color = ExpenseRed,
+                        color = LocalAppColors.current.error,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(12.dp)

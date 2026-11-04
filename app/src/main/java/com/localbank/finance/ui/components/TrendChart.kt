@@ -56,11 +56,11 @@ fun TrendChart(
         if (den != 0.0) num / den else 0.0
     } else 0.0
 
-    val dotFill = DarkCard
+    val dotFill = LocalAppColors.current.card
     val trendColor = when {
-        slope > yMean * 0.05 -> ExpenseRed       // subindo mais de 5%
-        slope < -yMean * 0.05 -> IncomeGreen     // caindo mais de 5%
-        else -> WarningAmber                      // estável
+        slope > yMean * 0.05 -> LocalAppColors.current.error       // subindo mais de 5%
+        slope < -yMean * 0.05 -> LocalAppColors.current.success     // caindo mais de 5%
+        else -> LocalAppColors.current.warning                      // estável
     }
 
     val trendLabel = when {
@@ -85,7 +85,7 @@ fun TrendChart(
             Text(trendLabel, color = trendColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Text(
                 " · média ${currency.format(yMean)}/mês",
-                color = OnDarkTextSecondary, fontSize = 12.sp
+                color = LocalAppColors.current.textSecondary, fontSize = 12.sp
             )
         }
 
@@ -174,7 +174,7 @@ fun TrendChart(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             points.forEach { point ->
-                Text(point.label, fontSize = 10.sp, color = OnDarkTextSecondary)
+                Text(point.label, fontSize = 10.sp, color = LocalAppColors.current.textSecondary)
             }
         }
     }

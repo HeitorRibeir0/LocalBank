@@ -102,16 +102,16 @@ fun ProfileScreen(
     }
 
     Scaffold(
-        containerColor = DarkBg,
+        containerColor = LocalAppColors.current.background,
         topBar = {
             TopAppBar(
-                title = { Text("Minha conta", color = OnDarkText) },
+                title = { Text("Minha conta", color = LocalAppColors.current.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = OnDarkTextSecondary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = LocalAppColors.current.textSecondary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBg)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = LocalAppColors.current.background)
             )
         }
     ) { padding ->
@@ -127,7 +127,7 @@ fun ProfileScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
+                colors = CardDefaults.cardColors(containerColor = LocalAppColors.current.card)
             ) {
                 Row(
                     modifier = Modifier.padding(20.dp),
@@ -157,12 +157,12 @@ fun ProfileScreen(
                             text = AuthManager.displayName,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
-                            color = OnDarkText
+                            color = LocalAppColors.current.textPrimary
                         )
                         Text(
                             text = AuthManager.currentUser?.email ?: "",
                             fontSize = 13.sp,
-                            color = OnDarkTextSecondary
+                            color = LocalAppColors.current.textSecondary
                         )
                     }
                 }
@@ -172,7 +172,7 @@ fun ProfileScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
+                colors = CardDefaults.cardColors(containerColor = LocalAppColors.current.card)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -186,7 +186,7 @@ fun ProfileScreen(
                             Icon(Icons.Default.Palette, null, Modifier.size(20.dp), tint = appColors.primary)
                         }
                         Spacer(Modifier.width(10.dp))
-                        Text("Tema do app", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = OnDarkText)
+                        Text("Tema do app", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = LocalAppColors.current.textPrimary)
                     }
 
                     Spacer(Modifier.height(16.dp))
@@ -227,7 +227,7 @@ fun ProfileScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
+                colors = CardDefaults.cardColors(containerColor = LocalAppColors.current.card)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -241,13 +241,13 @@ fun ProfileScreen(
                             Icon(Icons.Default.Home, null, Modifier.size(20.dp), tint = appColors.primary)
                         }
                         Spacer(Modifier.width(10.dp))
-                        Text("Lar financeiro", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = OnDarkText)
+                        Text("Lar financeiro", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = LocalAppColors.current.textPrimary)
                     }
 
                     if (householdId != null) {
                         Spacer(Modifier.height(16.dp))
 
-                        Text("Membros:", fontSize = 13.sp, color = OnDarkTextSecondary)
+                        Text("Membros:", fontSize = 13.sp, color = LocalAppColors.current.textSecondary)
                         Spacer(Modifier.height(4.dp))
                         memberNames.values.forEach { name ->
                             Row(
@@ -255,26 +255,26 @@ fun ProfileScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(Icons.Default.Person, null, Modifier.size(16.dp),
-                                    tint = OnDarkTextSecondary)
+                                    tint = LocalAppColors.current.textSecondary)
                                 Spacer(Modifier.width(8.dp))
-                                Text(name, fontSize = 14.sp, color = OnDarkText)
+                                Text(name, fontSize = 14.sp, color = LocalAppColors.current.textPrimary)
                             }
                         }
 
                         Spacer(Modifier.height(16.dp))
-                        HorizontalDivider(color = DarkSurfaceVariant)
+                        HorizontalDivider(color = LocalAppColors.current.surfaceVariant)
                         Spacer(Modifier.height(16.dp))
 
                         Text(
                             "Convide seu parceiro(a) para o lar:",
                             fontSize = 13.sp,
-                            color = OnDarkTextSecondary
+                            color = LocalAppColors.current.textSecondary
                         )
                         Spacer(Modifier.height(8.dp))
 
                         if (newInviteCode != null) {
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                                colors = CardDefaults.cardColors(containerColor = LocalAppColors.current.surfaceVariant),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(
@@ -297,7 +297,7 @@ fun ProfileScreen(
                                         Text("Copiar", fontSize = 13.sp, color = appColors.primary)
                                     }
                                     Text("Válido por 1 hora", fontSize = 11.sp,
-                                        color = OnDarkTextSecondary)
+                                        color = LocalAppColors.current.textSecondary)
                                 }
                             }
                         } else {
@@ -329,7 +329,7 @@ fun ProfileScreen(
                                 }
                             }
                             inviteError?.let {
-                                Text(it, color = ExpenseRed, fontSize = 12.sp,
+                                Text(it, color = LocalAppColors.current.error, fontSize = 12.sp,
                                     modifier = Modifier.padding(top = 6.dp))
                             }
                         }
@@ -338,7 +338,7 @@ fun ProfileScreen(
                         Text(
                             "Você ainda não está em nenhum lar.",
                             fontSize = 13.sp,
-                            color = OnDarkTextSecondary
+                            color = LocalAppColors.current.textSecondary
                         )
                     }
                 }
@@ -373,7 +373,7 @@ fun ProfileScreen(
                 onClick = { showClearConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningAmber)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = LocalAppColors.current.warning)
             ) {
                 Icon(Icons.Default.DeleteSweep, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
@@ -385,7 +385,7 @@ fun ProfileScreen(
                 onClick = { showClearAllConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = LocalAppColors.current.error)
             ) {
                 Icon(Icons.Default.DeleteForever, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
@@ -400,7 +400,7 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = ExpenseRed
+                    contentColor = LocalAppColors.current.error
                 )
             ) {
                 Icon(Icons.Default.Logout, null, Modifier.size(18.dp))
@@ -414,27 +414,27 @@ fun ProfileScreen(
     if (showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            containerColor = DarkCard,
+            containerColor = LocalAppColors.current.card,
             icon = {
-                Icon(Icons.Default.Warning, null, tint = WarningAmber, modifier = Modifier.size(32.dp))
+                Icon(Icons.Default.Warning, null, tint = LocalAppColors.current.warning, modifier = Modifier.size(32.dp))
             },
             title = {
-                Text("Limpar histórico", color = OnDarkText, fontWeight = FontWeight.Bold)
+                Text("Limpar histórico", color = LocalAppColors.current.textPrimary, fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "Isso vai apagar permanentemente:",
-                        color = OnDarkText,
+                        color = LocalAppColors.current.textPrimary,
                         fontWeight = FontWeight.Medium
                     )
-                    Text("• Todas as transações", color = OnDarkTextSecondary, fontSize = 14.sp)
-                    Text("• Todas as despesas agendadas", color = OnDarkTextSecondary, fontSize = 14.sp)
-                    Text("• Todos os orçamentos", color = OnDarkTextSecondary, fontSize = 14.sp)
+                    Text("• Todas as transações", color = LocalAppColors.current.textSecondary, fontSize = 14.sp)
+                    Text("• Todas as despesas agendadas", color = LocalAppColors.current.textSecondary, fontSize = 14.sp)
+                    Text("• Todos os orçamentos", color = LocalAppColors.current.textSecondary, fontSize = 14.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "⚠️ Suas contas e categorias serão mantidas.\nEssa ação não pode ser desfeita.",
-                        color = WarningAmber,
+                        color = LocalAppColors.current.warning,
                         fontSize = 13.sp,
                         lineHeight = 18.sp
                     )
@@ -447,12 +447,12 @@ fun ProfileScreen(
                         showClearConfirm = false
                     }
                 ) {
-                    Text("Limpar tudo", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                    Text("Limpar tudo", color = LocalAppColors.current.error, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) {
-                    Text("Cancelar", color = OnDarkTextSecondary)
+                    Text("Cancelar", color = LocalAppColors.current.textSecondary)
                 }
             }
         )
@@ -462,29 +462,29 @@ fun ProfileScreen(
     if (showClearAllConfirm) {
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
-            containerColor = DarkCard,
+            containerColor = LocalAppColors.current.card,
             icon = {
-                Icon(Icons.Default.DeleteForever, null, tint = ExpenseRed, modifier = Modifier.size(32.dp))
+                Icon(Icons.Default.DeleteForever, null, tint = LocalAppColors.current.error, modifier = Modifier.size(32.dp))
             },
             title = {
-                Text("Limpeza total", color = OnDarkText, fontWeight = FontWeight.Bold)
+                Text("Limpeza total", color = LocalAppColors.current.textPrimary, fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "Isso vai apagar permanentemente:",
-                        color = OnDarkText,
+                        color = LocalAppColors.current.textPrimary,
                         fontWeight = FontWeight.Medium
                     )
-                    Text("• Todas as transações", color = OnDarkTextSecondary, fontSize = 14.sp)
-                    Text("• Todas as despesas agendadas", color = OnDarkTextSecondary, fontSize = 14.sp)
-                    Text("• Todos os orçamentos", color = OnDarkTextSecondary, fontSize = 14.sp)
-                    Text("• Todas as contas", color = OnDarkTextSecondary, fontSize = 14.sp)
-                    Text("• Todas as categorias", color = OnDarkTextSecondary, fontSize = 14.sp)
+                    Text("• Todas as transações", color = LocalAppColors.current.textSecondary, fontSize = 14.sp)
+                    Text("• Todas as despesas agendadas", color = LocalAppColors.current.textSecondary, fontSize = 14.sp)
+                    Text("• Todos os orçamentos", color = LocalAppColors.current.textSecondary, fontSize = 14.sp)
+                    Text("• Todas as contas", color = LocalAppColors.current.textSecondary, fontSize = 14.sp)
+                    Text("• Todas as categorias", color = LocalAppColors.current.textSecondary, fontSize = 14.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "Tudo será apagado para todos os membros do lar. Essa ação não pode ser desfeita.",
-                        color = ExpenseRed,
+                        color = LocalAppColors.current.error,
                         fontSize = 13.sp,
                         lineHeight = 18.sp
                     )
@@ -497,12 +497,12 @@ fun ProfileScreen(
                         showClearAllConfirm = false
                     }
                 ) {
-                    Text("Apagar tudo", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                    Text("Apagar tudo", color = LocalAppColors.current.error, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearAllConfirm = false }) {
-                    Text("Cancelar", color = OnDarkTextSecondary)
+                    Text("Cancelar", color = LocalAppColors.current.textSecondary)
                 }
             }
         )
@@ -512,12 +512,12 @@ fun ProfileScreen(
     if (showJoinDialog) {
         AlertDialog(
             onDismissRequest = { showJoinDialog = false; joinError = null; joinCode = "" },
-            containerColor = DarkCard,
-            title = { Text("Entrar num lar", color = OnDarkText) },
+            containerColor = LocalAppColors.current.card,
+            title = { Text("Entrar num lar", color = LocalAppColors.current.textPrimary) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Digite o código de 6 caracteres que seu parceiro(a) compartilhou:",
-                        color = OnDarkTextSecondary)
+                        color = LocalAppColors.current.textSecondary)
                     OutlinedTextField(
                         value = joinCode,
                         onValueChange = { joinCode = it.uppercase().take(6); joinError = null },
@@ -536,7 +536,7 @@ fun ProfileScreen(
                             fontWeight = FontWeight.Medium)
                     }
                     joinError?.let {
-                        Text(it, color = ExpenseRed, fontSize = 13.sp)
+                        Text(it, color = LocalAppColors.current.error, fontSize = 13.sp)
                     }
                 }
             },
@@ -566,7 +566,7 @@ fun ProfileScreen(
             dismissButton = {
                 TextButton(onClick = {
                     showJoinDialog = false; joinError = null; joinCode = ""; joinSuccess = false
-                }) { Text(if (joinSuccess) "Fechar" else "Cancelar", color = OnDarkTextSecondary) }
+                }) { Text(if (joinSuccess) "Fechar" else "Cancelar", color = LocalAppColors.current.textSecondary) }
             }
         )
     }
@@ -574,12 +574,12 @@ fun ProfileScreen(
     if (confirmJoin) {
         AlertDialog(
             onDismissRequest = { confirmJoin = false },
-            containerColor = DarkCard,
-            title = { Text("Substituir dados deste celular?", color = OnDarkText) },
+            containerColor = LocalAppColors.current.card,
+            title = { Text("Substituir dados deste celular?", color = LocalAppColors.current.textPrimary) },
             text = {
                 Text(
                     "Este celular tem lançamentos que não estão no lar. Ao entrar, eles serão apagados e substituídos pelos dados do lar.",
-                    color = OnDarkTextSecondary
+                    color = LocalAppColors.current.textSecondary
                 )
             },
             confirmButton = {
@@ -589,7 +589,7 @@ fun ProfileScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmJoin = false }) {
-                    Text("Cancelar", color = OnDarkTextSecondary)
+                    Text("Cancelar", color = LocalAppColors.current.textSecondary)
                 }
             }
         )
@@ -623,7 +623,7 @@ private fun ThemeOption(
                 else Modifier
             ),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = LocalAppColors.current.surfaceVariant)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -647,7 +647,7 @@ private fun ThemeOption(
                 text = name,
                 fontSize = 14.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) color1 else OnDarkTextSecondary
+                color = if (isSelected) color1 else LocalAppColors.current.textSecondary
             )
         }
     }

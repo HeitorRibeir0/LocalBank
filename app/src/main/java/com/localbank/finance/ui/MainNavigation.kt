@@ -115,7 +115,7 @@ fun MainNavigation(
         )
     } else {
         Scaffold(
-            containerColor = DarkBg,
+            containerColor = LocalAppColors.current.background,
             snackbarHost = {
                 SnackbarHost(snackbarHostState) { data ->
                     Snackbar(snackbarData = data, containerColor = appColors.surfaceVariant,
@@ -144,9 +144,9 @@ fun MainNavigation(
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = DarkBg,
+                        containerColor = LocalAppColors.current.background,
                         titleContentColor = appColors.textPrimary,
-                        actionIconContentColor = OnDarkTextSecondary
+                        actionIconContentColor = LocalAppColors.current.textSecondary
                     ),
                     actions = {
                         BadgedBox(badge = {
@@ -165,8 +165,8 @@ fun MainNavigation(
             bottomBar = {
                 if (!useRail) {
                     NavigationBar(
-                        containerColor = DarkSurface,
-                        contentColor = OnDarkText,
+                        containerColor = LocalAppColors.current.surface,
+                        contentColor = LocalAppColors.current.textPrimary,
                         tonalElevation = 0.dp
                     ) {
                         screens.forEach { screen ->
@@ -179,8 +179,8 @@ fun MainNavigation(
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor   = appColors.primary,
                                     selectedTextColor   = appColors.primary,
-                                    unselectedIconColor = OnDarkTextSecondary,
-                                    unselectedTextColor = OnDarkTextSecondary,
+                                    unselectedIconColor = LocalAppColors.current.textSecondary,
+                                    unselectedTextColor = LocalAppColors.current.textSecondary,
                                     // pill quase invisível — a cor do ícone já comunica seleção
                                     indicatorColor      = appColors.brandPrimary.copy(alpha = 0.10f)
                                 )
@@ -192,7 +192,7 @@ fun MainNavigation(
         ) { innerPadding ->
             Row(Modifier.fillMaxSize().padding(innerPadding)) {
                 if (useRail) {
-                    NavigationRail(containerColor = DarkSurface, contentColor = OnDarkText) {
+                    NavigationRail(containerColor = LocalAppColors.current.surface, contentColor = LocalAppColors.current.textPrimary) {
                         Spacer(Modifier.weight(1f))
                         screens.forEach { screen ->
                             val selected = selectedScreen == screen
@@ -204,8 +204,8 @@ fun MainNavigation(
                                 colors = NavigationRailItemDefaults.colors(
                                     selectedIconColor   = appColors.primary,
                                     selectedTextColor   = appColors.primary,
-                                    unselectedIconColor = OnDarkTextSecondary,
-                                    unselectedTextColor = OnDarkTextSecondary,
+                                    unselectedIconColor = LocalAppColors.current.textSecondary,
+                                    unselectedTextColor = LocalAppColors.current.textSecondary,
                                     indicatorColor      = appColors.brandPrimary.copy(alpha = 0.10f)
                                 )
                             )
@@ -216,7 +216,7 @@ fun MainNavigation(
 
                 Surface(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
-                    color = DarkBg
+                    color = LocalAppColors.current.background
                 ) {
                     // Em telas largas o conteúdo fica centralizado com largura legível
                     Box(contentAlignment = Alignment.TopCenter) {

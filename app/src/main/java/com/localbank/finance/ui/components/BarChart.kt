@@ -39,8 +39,8 @@ fun BarChart(
         animatedProgress.animateTo(1f, animationSpec = tween(800))
     }
 
-    val incomeColor = IncomeGreen
-    val expenseColor = ExpenseRed
+    val incomeColor = LocalAppColors.current.success
+    val expenseColor = LocalAppColors.current.error
 
     Column(modifier = modifier) {
         Canvas(
@@ -88,7 +88,7 @@ fun BarChart(
                 Text(
                     text = entry.label,
                     fontSize = 10.sp,
-                    color = OnDarkTextSecondary
+                    color = LocalAppColors.current.textSecondary
                 )
             }
         }
@@ -99,10 +99,10 @@ fun BarChart(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.size(10.dp).background(incomeColor, RoundedCornerShape(2.dp)))
-            Text(" Entradas", fontSize = 12.sp, color = OnDarkText)
+            Text(" Entradas", fontSize = 12.sp, color = LocalAppColors.current.textPrimary)
             Spacer(Modifier.width(16.dp))
             Box(Modifier.size(10.dp).background(expenseColor, RoundedCornerShape(2.dp)))
-            Text(" Saídas", fontSize = 12.sp, color = OnDarkText)
+            Text(" Saídas", fontSize = 12.sp, color = LocalAppColors.current.textPrimary)
         }
     }
 }

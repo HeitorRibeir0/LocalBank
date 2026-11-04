@@ -110,18 +110,18 @@ class MainActivity : ComponentActivity() {
         updateInfo?.let { info ->
             AlertDialog(
                 onDismissRequest = { updateInfo = null },
-                containerColor = DarkCard,
+                containerColor = LocalAppColors.current.card,
                 icon = {
                     Icon(Icons.Default.SystemUpdate, null,
                         tint = appColors.primary, modifier = Modifier.size(32.dp))
                 },
                 title = {
-                    Text("Nova versão disponível", color = OnDarkText,
+                    Text("Nova versão disponível", color = LocalAppColors.current.textPrimary,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 },
                 text = {
                     Text("A versão ${info.latestVersion} está disponível. Deseja baixar agora?",
-                        color = OnDarkTextSecondary)
+                        color = LocalAppColors.current.textSecondary)
                 },
                 confirmButton = {
                     TextButton(onClick = {
@@ -136,7 +136,7 @@ class MainActivity : ComponentActivity() {
                 },
                 dismissButton = {
                     TextButton(onClick = { updateInfo = null }) {
-                        Text("Agora não", color = OnDarkTextSecondary)
+                        Text("Agora não", color = LocalAppColors.current.textSecondary)
                     }
                 }
             )
@@ -179,11 +179,11 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (isChecking) {
-                    Box(Modifier.fillMaxSize().background(DarkBg), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxSize().background(LocalAppColors.current.background), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = appColors.primary)
                             Spacer(Modifier.height(16.dp))
-                            Text("Verificando seu lar...", color = OnDarkTextSecondary)
+                            Text("Verificando seu lar...", color = LocalAppColors.current.textSecondary)
                         }
                     }
                 } else if (!foundHousehold) {
@@ -202,11 +202,11 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(Unit) {
                         authState = "check_household"
                     }
-                    Box(Modifier.fillMaxSize().background(DarkBg), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxSize().background(LocalAppColors.current.background), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = appColors.primary)
                             Spacer(Modifier.height(16.dp))
-                            Text("Carregando...", color = OnDarkTextSecondary)
+                            Text("Carregando...", color = LocalAppColors.current.textSecondary)
                         }
                     }
                 } else {
@@ -264,19 +264,19 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (isLoggingOut) {
-                        Box(Modifier.fillMaxSize().background(DarkBg), contentAlignment = Alignment.Center) {
+                        Box(Modifier.fillMaxSize().background(LocalAppColors.current.background), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator(color = appColors.primary)
                                 Spacer(Modifier.height(16.dp))
-                                Text("Saindo da conta...", color = OnDarkTextSecondary)
+                                Text("Saindo da conta...", color = LocalAppColors.current.textSecondary)
                             }
                         }
                     } else if (isSyncing) {
-                        Box(Modifier.fillMaxSize().background(DarkBg), contentAlignment = Alignment.Center) {
+                        Box(Modifier.fillMaxSize().background(LocalAppColors.current.background), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator(color = appColors.primary)
                                 Spacer(Modifier.height(16.dp))
-                                Text("Sincronizando dados...", color = OnDarkTextSecondary)
+                                Text("Sincronizando dados...", color = LocalAppColors.current.textSecondary)
                             }
                         }
                     } else {

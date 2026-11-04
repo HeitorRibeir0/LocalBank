@@ -127,39 +127,6 @@ val MeliuzColors = AppColors(
 
 val LocalAppColors = compositionLocalOf { EmeraldColors }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ALIASES LEGADOS — leem o tema ativo, então telas antigas seguem o tema
-// escolhido. Novas telas devem usar LocalAppColors.current diretamente.
-// ─────────────────────────────────────────────────────────────────────────────
-
-private val current: AppColors
-    @Composable @ReadOnlyComposable get() = LocalAppColors.current
-
-@Deprecated("Use LocalAppColors.current.background")
-val DarkBg: Color              @Composable @ReadOnlyComposable get() = current.background
-@Deprecated("Use LocalAppColors.current.surface")
-val DarkSurface: Color         @Composable @ReadOnlyComposable get() = current.surface
-@Deprecated("Use LocalAppColors.current.surfaceVariant")
-val DarkSurfaceVariant: Color  @Composable @ReadOnlyComposable get() = current.surfaceVariant
-@Deprecated("Use LocalAppColors.current.card")
-val DarkCard: Color            @Composable @ReadOnlyComposable get() = current.card
-@Deprecated("Use LocalAppColors.current.success")
-val IncomeGreen: Color         @Composable @ReadOnlyComposable get() = current.success
-@Deprecated("Use LocalAppColors.current.error")
-val ExpenseRed: Color          @Composable @ReadOnlyComposable get() = current.error
-@Deprecated("Use LocalAppColors.current.warning")
-val WarningAmber: Color        @Composable @ReadOnlyComposable get() = current.warning
-@Deprecated("Use LocalAppColors.current.info")
-val InfoBlue: Color            @Composable @ReadOnlyComposable get() = current.info
-@Deprecated("Use LocalAppColors.current.textPrimary")
-val OnDarkText: Color          @Composable @ReadOnlyComposable get() = current.textPrimary
-@Deprecated("Use LocalAppColors.current.textSecondary")
-val OnDarkTextSecondary: Color @Composable @ReadOnlyComposable get() = current.textSecondary
-@Deprecated("Use LocalAppColors.current.brandPrimary")
-val Emerald: Color             @Composable @ReadOnlyComposable get() = current.brandPrimary
-@Deprecated("Use LocalAppColors.current.onBrandPrimary")
-val OnEmerald: Color           @Composable @ReadOnlyComposable get() = current.onBrandPrimary
-
 // Amostras fixas de cada tema (seletor de tema no perfil)
 val GradientEmeraldStart = EmeraldColors.gradientStart
 val GradientEmeraldEnd   = EmeraldColors.gradientEnd
