@@ -117,6 +117,16 @@ class FinanceRepository(
     suspend fun deleteTransaction(transaction: Transaction) {
         transactionDao.delete(transaction)
         syncPush { it.deleteRemote(householdId!!, "transactions", transaction.id) }
+
+        // Se era pagamento de agendada, marca como não pago
+        if (transaction.scheduledId != null) {
+            val scheduled = scheduledExpenseDao.getById(transaction.scheduledId)
+            if (scheduled != null) {
+                scheduledExpenseDao.update(scheduled.copy(isPaid = false))
+                syncPush { it.pushScheduledExpense(householdId!!, scheduled.copy(isPaid = false)) }
+            }
+        }
+
         refreshBalances(transaction.accountId)
     }
 

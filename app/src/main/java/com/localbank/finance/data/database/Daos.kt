@@ -219,6 +219,9 @@ interface ScheduledExpenseDao {
     """)
     suspend fun getPendingNotification(now: Long, in7Days: Long): List<ScheduledExpense>
 
+    @Query("SELECT * FROM scheduled_expenses WHERE id = :id")
+    suspend fun getById(id: String): ScheduledExpense?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(expense: ScheduledExpense): Long
 
