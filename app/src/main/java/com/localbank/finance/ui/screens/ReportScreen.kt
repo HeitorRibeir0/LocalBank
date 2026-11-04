@@ -2,6 +2,7 @@ package com.localbank.finance.ui.screens
 
 import com.localbank.finance.ui.util.rememberCurrencyFormat
 import com.localbank.finance.ui.util.rememberDateFormat
+import com.localbank.finance.ui.util.PtBr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -186,7 +187,7 @@ fun ReportScreen(viewModel: ReportViewModel) {
                                 color = OnDarkText
                             )
                             Text(
-                                text = String.format("%.1f%%", catExpense.percentage),
+                                text = String.format(PtBr, "%.1f%%", catExpense.percentage),
                                 fontSize = 12.sp,
                                 color = OnDarkTextSecondary
                             )

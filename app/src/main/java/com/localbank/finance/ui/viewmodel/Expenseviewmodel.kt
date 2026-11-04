@@ -6,6 +6,7 @@ import com.localbank.finance.auth.AuthManager
 import com.localbank.finance.data.model.*
 import com.localbank.finance.data.repository.FinanceRepository
 import com.localbank.finance.ui.util.normalizeCategoryName
+import com.localbank.finance.ui.util.PtBr
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -89,10 +90,10 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
 
         when {
             pct >= 1.0 -> _budgetAlert.tryEmit(
-                "⚠ Limite de $categoryName estourado! Gasto: ${String.format("%.0f", pct * 100)}% do orçamento."
+                "⚠ Limite de $categoryName estourado! Gasto: ${String.format(PtBr, "%.0f", pct * 100)}% do orçamento."
             )
             pct >= 0.8 -> _budgetAlert.tryEmit(
-                "Atenção: $categoryName atingiu ${String.format("%.0f", pct * 100)}% do limite mensal."
+                "Atenção: $categoryName atingiu ${String.format(PtBr, "%.0f", pct * 100)}% do limite mensal."
             )
         }
     }

@@ -54,7 +54,7 @@ class BudgetViewModel(private val repository: FinanceRepository) : ViewModel() {
 
                 BudgetWithProgress(
                     budget           = budget,
-                    categoryName     = category?.name ?: "Sem categoria",
+                    categoryName     = category?.displayName ?: "Sem categoria",
                     categoryColorHex = category?.colorHex ?: "#9E9E9E",
                     spent            = spent,
                     percentage       = if (budget.limitAmount > 0) (spent / budget.limitAmount).toFloat() else 0f

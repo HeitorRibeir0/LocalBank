@@ -108,7 +108,7 @@ internal fun buildReport(
         .map { (catId, total) ->
             val category = categoriesById[catId]
             CategoryExpense(
-                categoryName = category?.name ?: "Sem categoria",
+                categoryName = category?.displayName ?: "Sem categoria",
                 colorHex     = category?.colorHex ?: "#9E9E9E",
                 totalAmount  = total,
                 percentage   = if (totalExpense > 0) (total / totalExpense * 100).toFloat() else 0f
@@ -160,7 +160,7 @@ internal fun buildReport(
         balance          = semesterIncome - semesterExpense,
         bestMonth        = bestMonth,
         worstMonth       = worstMonth,
-        topCategory      = topCategory?.name ?: "Sem dados",
+        topCategory      = topCategory?.displayName ?: "Sem dados",
         topCategoryColor = topCategory?.colorHex ?: "#9E9E9E",
         savingsRate      = savingsRate
     ) else null

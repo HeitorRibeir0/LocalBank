@@ -69,6 +69,7 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .safeDrawingPadding()
             .background(DarkBg)
             .padding(32.dp),
         contentAlignment = Alignment.Center
