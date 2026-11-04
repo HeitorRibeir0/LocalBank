@@ -38,13 +38,13 @@ class BuildDashboardTest {
     )
 
     @Test
-    fun `saldo total soma as contas e sobra desconta contas do mes`() {
+    fun `saldo mensal zera no novo mes e sobra desconta contas do mes`() {
         val state = buildDashboard(emptyList(), scheduled, emptyList(), accounts, emptyList(), now)
 
         assertEquals(15, state.daysLeft)
-        assertEquals((3500.0).toCents(), state.accountsBalanceCents)
+        assertEquals(0L, state.accountsBalanceCents)  // sem transações neste mês: saldo mensal é 0
         assertEquals((1619.90).toCents(), state.pendingThisMonthCents)          // 1450 + 119,90 + 50 atrasada
-        assertEquals((3500.0 - 1619.90).toCents(), state.freeAfterBillsCents)
+        assertEquals((0L - 1619.90).toCents(), state.freeAfterBillsCents)  // 0 - contas = negativo
     }
 
     @Test
@@ -67,12 +67,12 @@ class BuildDashboardTest {
     }
 
     @Test
-    fun `saldo menor que as contas deixa a sobra negativa`() {
+    fun `sem transacoes no mes deixa saldo mensal zero mesmo com saldo nas contas`() {
         val poor = listOf(Account(id = "a", name = "Carteira", type = AccountType.WALLET, balanceCents = (100.0).toCents()))
         val state = buildDashboard(emptyList(), scheduled, emptyList(), poor, emptyList(), now)
 
-        assertEquals((100.0).toCents(), state.accountsBalanceCents)
-        assertTrue(state.freeAfterBillsCents < 0)
+        assertEquals(0L, state.accountsBalanceCents)  // saldo mensal, não conta o acumulado
+        assertTrue(state.freeAfterBillsCents < 0)  // mas tem contas a pagar
     }
 
     @Test
@@ -89,6 +89,7 @@ class BuildDashboardTest {
 
         assertEquals((5000.0).toCents(), state.totalIncomeCents)
         assertEquals((300.0).toCents(), state.totalExpenseCents)
+        assertEquals((4700.0).toCents(), state.accountsBalanceCents)  // 5000 - 300 de outubro
         assertEquals("Sem categoria", state.categoryExpenses.single().categoryName)
     }
 }

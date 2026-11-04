@@ -26,7 +26,7 @@ enum class BillMark { NONE, PAID, DUE }
 
 data class DashboardUiState(
     // Ritmo do mês
-    val accountsBalanceCents: Long = 0,         // saldo somado de todas as contas
+    val accountsBalanceCents: Long = 0,         // saldo do mês atual (entradas - saídas)
     val pendingThisMonthCents: Long = 0,        // agendadas não pagas até o fim do mês (inclui atrasadas)
     val freeAfterBillsCents: Long = 0,          // saldo − pendente do mês (negativo = falta dinheiro)
     val daysLeft: Int = 1,                      // inclui hoje
@@ -112,7 +112,7 @@ internal fun buildDashboard(
     val daysLeft = daysInMonth - today + 1
     val pending = scheduled.filter { !it.isPaid }
     val pendingThisMonth = pending.filter { it.dueDate <= month.to }.sumOf { it.amountCents }
-    val accountsBalance = accounts.filter { !it.archived }.sumOf { it.balanceCents }
+    val monthlyBalance = income - expense
 
     val marks = MutableList(daysInMonth) { BillMark.NONE }
     val cursor = Calendar.getInstance()
@@ -145,9 +145,9 @@ internal fun buildDashboard(
         .sortedByDescending { it.amountCents }
 
     return DashboardUiState(
-        accountsBalanceCents  = accountsBalance,
+        accountsBalanceCents  = monthlyBalance,
         pendingThisMonthCents = pendingThisMonth,
-        freeAfterBillsCents   = accountsBalance - pendingThisMonth,
+        freeAfterBillsCents   = monthlyBalance - pendingThisMonth,
         daysLeft           = daysLeft,
         today              = today,
         billMarks          = marks,

@@ -353,7 +353,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
                 }
 
                 CATEGORIES -> {
-                    val categories = batch.upserts.mapNotNull(::mapToCategory)
+                    val categories = batch.upserts.mapNotNull(::mapToCategory).distinctBy { it.id }
                     categoryDao.insertOrIgnore(categories)
                     categoryDao.updateAll(categories)
                     batch.removals.mapNotNull(::mapToCategory).forEach { categoryDao.delete(it) }
