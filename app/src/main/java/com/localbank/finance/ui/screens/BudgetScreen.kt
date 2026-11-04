@@ -83,6 +83,7 @@ fun BudgetScreen(viewModel: BudgetViewModel) {
 
 @Composable
 fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () -> Unit) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val color = when {
         item.percentage >= 1.0f -> ExpenseRed
         item.percentage >= 0.8f -> WarningAmber
@@ -113,8 +114,8 @@ fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () ->
                             fontSize = 13.sp, color = OnDarkTextSecondary)
                     }
                     Text("${(item.percentage * 100).toInt()}%", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = color)
-                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Delete, "Excluir", modifier = Modifier.size(16.dp),
+                    IconButton(onClick = { showDeleteDialog = true }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Delete, "Excluir", modifier = Modifier.size(20.dp),
                             tint = OnDarkTextSecondary.copy(alpha = 0.6f))
                     }
                 }
@@ -132,6 +133,24 @@ fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () ->
                 }
             }
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            containerColor = DarkCard,
+            title = { Text("Excluir orçamento?", color = OnDarkText) },
+            text = { Text("Orçamento de \"${item.categoryName}\" será removido.", color = OnDarkTextSecondary) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete()
+                    showDeleteDialog = false
+                }) { Text("Excluir", color = ExpenseRed) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar", color = OnDarkTextSecondary) }
+            }
+        )
     }
 }
 
