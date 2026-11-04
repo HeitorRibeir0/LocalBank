@@ -3,6 +3,7 @@ package com.localbank.finance.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.localbank.finance.data.model.Category
+import com.localbank.finance.data.model.displayName
 import com.localbank.finance.data.model.Transaction
 import com.localbank.finance.data.model.TransactionType
 import com.localbank.finance.data.repository.FinanceRepository

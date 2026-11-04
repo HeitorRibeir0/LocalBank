@@ -47,6 +47,7 @@ import com.localbank.finance.worker.NotificationScheduler
 import kotlinx.coroutines.Dispatchers
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -56,6 +57,17 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) NotificationScheduler.schedule(this)
+    }
+
+    private suspend fun performLogout(syncManager: FirestoreSyncManager?) {
+        syncManager?.close()
+        withContext(Dispatchers.IO) {
+            db.clearAllTables()
+            AppDatabase.seedDefaults(db.openHelper.writableDatabase)
+        }
+        AuthManager.signOut(this@MainActivity)
+        HouseholdManager.clearHouseholdId(this@MainActivity)
+        runOnUiThread { recreate() }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -136,6 +148,7 @@ class MainActivity : ComponentActivity() {
                 if (AuthManager.isSignedIn) "check_household" else "login"
             )
         }
+        var isLoggingOut by remember { mutableStateOf(false) }
 
         when (authState) {
             "login" -> {
@@ -250,7 +263,15 @@ class MainActivity : ComponentActivity() {
                         onDispose { syncManager.close() }
                     }
 
-                    if (isSyncing) {
+                    if (isLoggingOut) {
+                        Box(Modifier.fillMaxSize().background(DarkBg), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = appColors.primary)
+                                Spacer(Modifier.height(16.dp))
+                                Text("Saindo da conta...", color = OnDarkTextSecondary)
+                            }
+                        }
+                    } else if (isSyncing) {
                         Box(Modifier.fillMaxSize().background(DarkBg), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator(color = appColors.primary)
@@ -272,15 +293,16 @@ class MainActivity : ComponentActivity() {
                             reportViewModel = reportVm,
                             savingsGoalViewModel = savingsVm,
                             onLogout = {
-                                syncManager.stopListening()
-                                HouseholdManager.clearHouseholdId(this@MainActivity)
-                                AuthManager.signOut(this@MainActivity)
-                                authState = "login"
-                                // Outra conta neste aparelho não pode ver os dados desta
-                                lifecycleScope.launch(Dispatchers.IO) {
-                                    db.clearAllTables()
-                                    AppDatabase.seedDefaults(db.openHelper.writableDatabase)
-                                    runOnUiThread { recreate() }
+                                isLoggingOut = true
+                                lifecycleScope.launch {
+                                    try {
+                                        performLogout(syncManager)
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("MainActivity", "Logout error: ${e.message}", e)
+                                    } finally {
+                                        isLoggingOut = false
+                                        authState = "login"
+                                    }
                                 }
                             },
                             onThemeChanged = onThemeChanged,
