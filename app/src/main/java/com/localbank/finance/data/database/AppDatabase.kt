@@ -91,26 +91,52 @@ abstract class AppDatabase : RoomDatabase() {
          * A passphrase é guardada em EncryptedSharedPreferences (protegida pelo Android Keystore).
          */
         private fun getOrCreatePassphrase(context: Context): ByteArray {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
+            try {
+                val masterKey = MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
 
-            val prefs = EncryptedSharedPreferences.create(
-                context,
-                "secure_db_prefs",
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
+                val prefs = EncryptedSharedPreferences.create(
+                    context,
+                    "secure_db_prefs",
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
 
-            val existing = prefs.getString("db_passphrase", null)
-            if (existing != null) {
-                return existing.toByteArray()
+                val existing = prefs.getString("db_passphrase", null)
+                if (existing != null) {
+                    return existing.toByteArray()
+                }
+
+                val newPassphrase = UUID.randomUUID().toString() + UUID.randomUUID().toString()
+                prefs.edit().putString("db_passphrase", newPassphrase).apply()
+                return newPassphrase.toByteArray()
+            } catch (e: Exception) {
+                // Falha ao ler passphrase criptografada (ex.: troca de celular).
+                // Limpar e recriar para que o app se recupere via recoverHousehold.
+                try {
+                    context.deleteSharedPreferences("secure_db_prefs")
+                    context.deleteDatabase("finance_secure_db")
+                } catch (_: Exception) {}
+
+                val newPassphrase = UUID.randomUUID().toString() + UUID.randomUUID().toString()
+                try {
+                    val masterKey = MasterKey.Builder(context)
+                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                        .build()
+                    val prefs = EncryptedSharedPreferences.create(
+                        context,
+                        "secure_db_prefs",
+                        masterKey,
+                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                    )
+                    prefs.edit().putString("db_passphrase", newPassphrase).apply()
+                } catch (_: Exception) {}
+
+                return newPassphrase.toByteArray()
             }
-
-            val newPassphrase = UUID.randomUUID().toString() + UUID.randomUUID().toString()
-            prefs.edit().putString("db_passphrase", newPassphrase).apply()
-            return newPassphrase.toByteArray()
         }
 
         /** Recria categorias e conta padrão (usado depois de limpar os dados no logout). */
