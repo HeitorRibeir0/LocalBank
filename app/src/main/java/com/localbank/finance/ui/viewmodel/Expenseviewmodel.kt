@@ -21,6 +21,15 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
     private val _budgetAlert = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val budgetAlert: SharedFlow<String> = _budgetAlert
 
+    // ── Transações por período (otimizado para ExpensesScreen) ──
+    fun getTransactionsByPeriod(from: Long, to: Long): StateFlow<List<Transaction>> = repository
+        .getTransactionsByPeriod(from, to)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Lazily,
+            initialValue = emptyList()
+        )
+
     val transactions: StateFlow<List<Transaction>> = repository
         .getAllTransactions()
         .stateIn(
