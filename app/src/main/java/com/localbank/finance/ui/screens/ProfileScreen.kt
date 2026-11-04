@@ -396,11 +396,7 @@ fun ProfileScreen(
 
             // ── Sair ──
             OutlinedButton(
-                onClick = {
-                    AuthManager.signOut(context)
-                    HouseholdManager.clearHouseholdId(context)
-                    onLogout()
-                },
+                onClick = { onLogout() },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(

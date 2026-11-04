@@ -6,6 +6,13 @@ import com.localbank.finance.sync.FirestoreSyncManager
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 
+private data class PayResult(
+    val tx: Transaction,
+    val paid: ScheduledExpense,
+    val next: ScheduledExpense?,
+    val account: Account?
+)
+
 class FinanceRepository(
     private val accountDao: AccountDao,
     private val categoryDao: CategoryDao,
@@ -149,13 +156,25 @@ class FinanceRepository(
     }
 
     suspend fun payScheduledExpense(expense: ScheduledExpense) {
-        // Tudo ou nada: sem isso, uma falha no meio deixa a conta paga sem lançamento
+        val payResult: PayResult
         val db = database
-        if (db != null) db.withTransaction { payScheduledExpenseInternal(expense) }
-        else payScheduledExpenseInternal(expense)
+        if (db != null) {
+            payResult = db.withTransaction { payScheduledExpenseInternal(expense) }
+        } else {
+            payResult = payScheduledExpenseInternal(expense)
+        }
+        // Só faz push após a transação local ter sucesso
+        syncPush { it.pushTransaction(householdId!!, payResult.tx) }
+        syncPush { it.pushScheduledExpense(householdId!!, payResult.paid) }
+        if (payResult.next != null) {
+            syncPush { it.pushScheduledExpense(householdId!!, payResult.next) }
+        }
+        if (payResult.account != null) {
+            syncPush { it.pushAccount(householdId!!, payResult.account) }
+        }
     }
 
-    private suspend fun payScheduledExpenseInternal(expense: ScheduledExpense) {
+    private suspend fun payScheduledExpenseInternal(expense: ScheduledExpense): PayResult {
         scheduledExpenseDao.markAsPaid(expense.id)
         val transaction = Transaction(
             accountId   = expense.accountId,
@@ -166,11 +185,10 @@ class FinanceRepository(
             date        = System.currentTimeMillis(),
             scheduledId = expense.id
         )
-        insertTransaction(transaction)
-        syncPush {
-            it.pushScheduledExpense(householdId!!, expense.copy(isPaid = true))
-        }
+        transactionDao.insert(transaction)
+        accountDao.recalculateBalance(expense.accountId)
 
+        var next: ScheduledExpense? = null
         // Criar próxima ocorrência automaticamente
         if (expense.isRecurring && expense.recurrenceRule != null) {
             val cal = java.util.Calendar.getInstance().apply { timeInMillis = expense.dueDate }
@@ -180,14 +198,22 @@ class FinanceRepository(
                 RecurrenceRule.MONTHLY -> cal.add(java.util.Calendar.MONTH, 1)
                 RecurrenceRule.YEARLY  -> cal.add(java.util.Calendar.YEAR, 1)
             }
-            val next = expense.copy(
+            next = expense.copy(
                 id      = java.util.UUID.randomUUID().toString(),
                 dueDate = cal.timeInMillis,
                 isPaid  = false,
                 notified = false
             )
-            insertScheduled(next)
+            scheduledExpenseDao.insert(next)
         }
+
+        val account = accountDao.getById(expense.accountId)
+        return PayResult(
+            tx = transaction,
+            paid = expense.copy(isPaid = true),
+            next = next,
+            account = account
+        )
     }
 
     // ─────────────────────────────────────────────

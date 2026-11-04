@@ -254,11 +254,11 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else {
-                        val dashboardVm: DashboardViewModel = viewModel(factory = factory)
-                        val expenseVm: ExpenseViewModel = viewModel(factory = factory)
-                        val budgetVm: BudgetViewModel = viewModel(factory = factory)
-                        val reportVm: ReportViewModel = viewModel(factory = factory)
-                        val savingsVm: com.localbank.finance.ui.viewmodel.SavingsGoalViewModel = viewModel(factory = factory)
+                        val dashboardVm: DashboardViewModel = viewModel(key = "dashboard-$householdId", factory = factory)
+                        val expenseVm: ExpenseViewModel = viewModel(key = "expense-$householdId", factory = factory)
+                        val budgetVm: BudgetViewModel = viewModel(key = "budget-$householdId", factory = factory)
+                        val reportVm: ReportViewModel = viewModel(key = "report-$householdId", factory = factory)
+                        val savingsVm: com.localbank.finance.ui.viewmodel.SavingsGoalViewModel = viewModel(key = "savings-$householdId", factory = factory)
 
                         MainNavigation(
                             dashboardViewModel = dashboardVm,
@@ -275,6 +275,7 @@ class MainActivity : ComponentActivity() {
                                 lifecycleScope.launch(Dispatchers.IO) {
                                     db.clearAllTables()
                                     AppDatabase.seedDefaults(db.openHelper.writableDatabase)
+                                    runOnUiThread { recreate() }
                                 }
                             },
                             onThemeChanged = onThemeChanged,
