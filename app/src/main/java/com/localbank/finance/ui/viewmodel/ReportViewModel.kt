@@ -61,16 +61,130 @@ class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
     fun isCurrentMonth(): Boolean =
         DateRanges.isSameMonth(_selectedMonth.value, Calendar.getInstance())
 
-    val uiState: StateFlow<ReportUiState> = combine(
-        repository.getAllTransactions(),
-        repository.getAllCategories(),
-        _selectedMonth
-    ) { transactions, categories, selectedCal ->
-        buildReport(transactions, categories, selectedCal)
+    val uiState: StateFlow<ReportUiState> = _selectedMonth.flatMapLatest { selectedCal ->
+        val sixMonthsAgo = Calendar.getInstance().apply { add(Calendar.MONTH, -6) }
+        val semesterRange = DateRanges.semester(selectedCal)
+        val monthRange = DateRanges.month(selectedCal)
+
+        combine(
+            repository.getMonthlyTotals(sixMonthsAgo.timeInMillis, System.currentTimeMillis()),
+            repository.getExpenseByCategory(monthRange.from, monthRange.to),
+            repository.getExpenseByCategory(semesterRange.from, semesterRange.to),
+            repository.getAllCategories()
+        ) { monthlyTotals, monthExpenses, semesterExpenses, categories ->
+            buildReportFromAggregates(
+                monthlyTotals = monthlyTotals,
+                monthExpensesByCategory = monthExpenses,
+                semesterExpensesByCategory = semesterExpenses,
+                categories = categories,
+                selectedCal = selectedCal
+            )
+        }
     }.flowOn(Dispatchers.Default).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = ReportUiState()
+    )
+}
+
+/** Cálculo puro do relatório usando dados agregados (otimizado). */
+internal fun buildReportFromAggregates(
+    monthlyTotals: List<com.localbank.finance.data.database.TransactionDao.MonthlyTotal>,
+    monthExpensesByCategory: List<com.localbank.finance.data.database.TransactionDao.CategoryTotal>,
+    semesterExpensesByCategory: List<com.localbank.finance.data.database.TransactionDao.CategoryTotal>,
+    categories: List<Category>,
+    selectedCal: Calendar
+): ReportUiState {
+    val locale = Locale.forLanguageTag("pt-BR")
+    val categoriesById = categories.associateBy { it.id }
+
+    // ── Mapa de totais por mês (de 6 meses atrás até agora) ──
+    val incomeByMonthYm = HashMap<String, Double>()
+    val expenseByMonthYm = HashMap<String, Double>()
+    monthlyTotals.forEach { (monthYm, type, total) ->
+        if (type == "INCOME") {
+            incomeByMonthYm[monthYm] = total
+        } else {
+            expenseByMonthYm[monthYm] = total
+        }
+    }
+
+    // ── Gastos por categoria no mês selecionado ──
+    val totalExpense = monthExpensesByCategory.sumOf { it.total ?: 0.0 }
+    val categoryExpenses = monthExpensesByCategory
+        .map { (catId, total) ->
+            val category = categoriesById[catId]
+            CategoryExpense(
+                categoryName = category?.displayName ?: "Sem categoria",
+                colorHex     = category?.colorHex ?: "#9E9E9E",
+                totalAmount  = total ?: 0.0,
+                percentage   = if (totalExpense > 0) ((total ?: 0.0) / totalExpense * 100).toFloat() else 0f
+            )
+        }
+        .sortedByDescending { it.totalAmount }
+
+    // ── Comparativo: 6 meses até o mês selecionado ──
+    val sdf = SimpleDateFormat("MMM/yy", locale)
+    val monthlyComparison = (5 downTo 0).map { monthsAgo ->
+        val c = (selectedCal.clone() as Calendar).apply { add(Calendar.MONTH, -monthsAgo) }
+        val monthYm = SimpleDateFormat("yyyy-MM", Locale.US).format(c.time)
+        MonthlyComparison(
+            sdf.format(c.time).replaceFirstChar { it.uppercase() },
+            incomeByMonthYm[monthYm] ?: 0.0,
+            expenseByMonthYm[monthYm] ?: 0.0
+        )
+    }
+
+    // ── Panorama semestral ──
+    val selectedYear = selectedCal.get(Calendar.YEAR)
+    val isFirstSemester = selectedCal.get(Calendar.MONTH) < 6
+    val semesterStartMonth = if (isFirstSemester) 0 else 6
+    val semesterLabel = "${if (isFirstSemester) "1º" else "2º"} Semestre $selectedYear"
+    val monthLabelSdf = SimpleDateFormat("MMM", locale)
+
+    val semesterMonths = (0 until 6).map { offset ->
+        val c = (selectedCal.clone() as Calendar).apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.MONTH, semesterStartMonth + offset)
+        }
+        val monthYm = SimpleDateFormat("yyyy-MM", Locale.US).format(c.time)
+        Triple(
+            monthLabelSdf.format(c.time).replaceFirstChar { it.uppercase() },
+            incomeByMonthYm[monthYm] ?: 0.0,
+            expenseByMonthYm[monthYm] ?: 0.0
+        )
+    }
+
+    val semesterIncome = semesterMonths.sumOf { it.second }
+    val semesterExpense = semesterMonths.sumOf { it.third }
+
+    val activeMonths = semesterMonths.filter { it.third > 0 }
+    val bestMonth = activeMonths.minByOrNull { it.third }?.first ?: "-"
+    val worstMonth = activeMonths.maxByOrNull { it.third }?.first ?: "-"
+
+    val topCategoryId = semesterExpensesByCategory.maxByOrNull { it.total ?: 0.0 }?.categoryId
+    val topCategory = topCategoryId?.let { categoriesById[it] }
+    val savingsRate = if (semesterIncome > 0)
+        ((semesterIncome - semesterExpense) / semesterIncome * 100).toFloat().coerceIn(0f, 100f)
+    else 0f
+
+    val semesterReport = if (semesterExpense > 0 || semesterIncome > 0) SemesterReport(
+        label            = semesterLabel,
+        totalIncome      = semesterIncome,
+        totalExpense     = semesterExpense,
+        balance          = semesterIncome - semesterExpense,
+        bestMonth        = bestMonth,
+        worstMonth       = worstMonth,
+        topCategory      = topCategory?.displayName ?: "Sem dados",
+        topCategoryColor = topCategory?.colorHex ?: "#9E9E9E",
+        savingsRate      = savingsRate
+    ) else null
+
+    return ReportUiState(
+        categoryExpenses      = categoryExpenses,
+        monthlyComparison     = monthlyComparison,
+        totalExpenseThisMonth = totalExpense,
+        semesterReport        = semesterReport
     )
 }
 
