@@ -2,7 +2,6 @@ package com.localbank.finance.ui.screens
 
 import com.localbank.finance.util.DateRange
 import com.localbank.finance.util.DateRanges
-import com.localbank.finance.util.toCents
 import com.localbank.finance.ui.util.rememberCurrencyFormat
 import com.localbank.finance.ui.util.rememberDateFormat
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -11,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import com.localbank.finance.ui.util.cents
 import com.localbank.finance.ui.util.label
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -235,7 +235,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     showEditTx?.let { tx ->
         EditTransactionDialog(
             transaction = tx,
-            accounts = accounts,
+            accounts = accounts.filter { !it.archived || it.id == tx.accountId },
             categories = categories,
             onDismiss = { showEditTx = null },
             onConfirm = { updated ->
@@ -248,7 +248,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     showEditScheduled?.let { expense ->
         EditScheduledDialog(
             expense = expense,
-            accounts = accounts,
+            accounts = accounts.filter { !it.archived || it.id == expense.accountId },
             categories = categories,
             onDismiss = { showEditScheduled = null },
             onConfirm = { updated ->
@@ -302,7 +302,7 @@ fun TransactionCard(
                 }
             )
             ItemTrailing(
-                value = "${if (isIncome) "+" else "−"} ${currency.format(transaction.amount)}",
+                value = "${if (isIncome) "+" else "−"} ${currency.cents(transaction.amountCents)}",
                 valueColor = amountColor
             ) {
                 IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
@@ -362,7 +362,7 @@ fun ScheduledCard(
                 metaColor = if (isOverdue) c.error else c.textSecondary
             )
             ItemTrailing(
-                value = currency.format(expense.amount),
+                value = currency.cents(expense.amountCents),
                 valueColor = if (expense.isPaid) c.textSecondary else c.error
             ) {
                 if (expense.isPaid) {
@@ -474,7 +474,7 @@ fun EditScheduledDialog(
     val sdf = rememberDateFormat("dd/MM/yyyy")
 
     var description by remember { mutableStateOf(expense.description) }
-    var amountRaw by remember { mutableStateOf(expense.amount.toCents().toString()) }
+    var amountRaw by remember { mutableStateOf(expense.amountCents.toString()) }
     var dueDateText by remember { mutableStateOf(sdf.format(Date(expense.dueDate))) }
     var isRecurring by remember { mutableStateOf(expense.isRecurring) }
     var recurrenceRule by remember { mutableStateOf(expense.recurrenceRule ?: RecurrenceRule.MONTHLY) }
@@ -568,7 +568,7 @@ fun EditScheduledDialog(
         confirmButton = {
             TextButton(onClick = {
                 val account = selectedAccount
-                val amount = (amountRaw.toLongOrNull() ?: 0) / 100.0
+                val amount = amountRaw.toLongOrNull() ?: 0L
                 val dueDate = try { sdf.parse(dueDateText)?.time } catch (_: Exception) { null }
                 if (account == null || amount <= 0 || dueDate == null) { showError = true; return@TextButton }
                 onConfirm(
@@ -576,7 +576,7 @@ fun EditScheduledDialog(
                         accountId = account.id,
                         categoryId = selectedCategory?.id,
                         description = description.trim(),
-                        amount = amount,
+                        amountCents = amount,
                         dueDate = dueDate,
                         isRecurring = isRecurring,
                         recurrenceRule = if (isRecurring) recurrenceRule else null
@@ -601,7 +601,7 @@ fun EditTransactionDialog(
 
     var description by remember { mutableStateOf(transaction.description) }
     var amountRaw by remember {
-        mutableStateOf(transaction.amount.toCents().toString())
+        mutableStateOf(transaction.amountCents.toString())
     }
     var isIncome by remember { mutableStateOf(transaction.type == TransactionType.INCOME) }
     var selectedAccount by remember { mutableStateOf(accounts.find { it.id == transaction.accountId }) }
@@ -684,13 +684,13 @@ fun EditTransactionDialog(
         confirmButton = {
             TextButton(onClick = {
                 val account = selectedAccount
-                val amount = (amountRaw.toLongOrNull() ?: 0) / 100.0
+                val amount = amountRaw.toLongOrNull() ?: 0L
                 if (account == null || amount <= 0) { showError = true; return@TextButton }
                 onConfirm(
                     transaction.copy(
                         accountId   = account.id,
                         categoryId  = selectedCategory?.id,
-                        amount      = amount,
+                        amountCents = amount,
                         type        = if (isIncome) TransactionType.INCOME else TransactionType.EXPENSE,
                         description = description.trim()
                     )

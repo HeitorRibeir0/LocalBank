@@ -11,7 +11,6 @@ import com.localbank.finance.data.model.displayName
 import com.localbank.finance.data.repository.FinanceRepository
 import com.localbank.finance.util.DateRanges
 import com.localbank.finance.util.DateRange
-import com.localbank.finance.util.roundCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import java.util.Calendar
@@ -19,7 +18,7 @@ import java.util.Calendar
 data class CategoryExpenseSlice(
     val categoryName: String,
     val colorHex: String,
-    val amount: Double
+    val amountCents: Long
 )
 
 /** Estado de um dia na régua do mês. */
@@ -27,16 +26,16 @@ enum class BillMark { NONE, PAID, DUE }
 
 data class DashboardUiState(
     // Ritmo do mês
-    val accountsBalance: Double = 0.0,          // saldo somado de todas as contas
-    val pendingThisMonth: Double = 0.0,         // agendadas não pagas até o fim do mês (inclui atrasadas)
-    val freeAfterBills: Double = 0.0,           // saldo − pendente do mês (negativo = falta dinheiro)
+    val accountsBalanceCents: Long = 0,         // saldo somado de todas as contas
+    val pendingThisMonthCents: Long = 0,        // agendadas não pagas até o fim do mês (inclui atrasadas)
+    val freeAfterBillsCents: Long = 0,          // saldo − pendente do mês (negativo = falta dinheiro)
     val daysLeft: Int = 1,                      // inclui hoje
     val today: Int = 1,
     val billMarks: List<BillMark> = emptyList(),// um item por dia do mês
 
     // Mês
-    val totalIncome: Double = 0.0,
-    val totalExpense: Double = 0.0,
+    val totalIncomeCents: Long = 0,
+    val totalExpenseCents: Long = 0,
     val categoryExpenses: List<CategoryExpenseSlice> = emptyList(),
 
     // Listas
@@ -45,7 +44,7 @@ data class DashboardUiState(
     val recentTransactions: List<Transaction> = emptyList(),
     val categoryNames: Map<String, String> = emptyMap()
 ) {
-    val balance: Double get() = totalIncome - totalExpense
+    val balanceCents: Long get() = totalIncomeCents - totalExpenseCents
 }
 
 class DashboardViewModel(private val repository: FinanceRepository) : ViewModel() {
@@ -101,21 +100,19 @@ internal fun buildDashboard(
     val monthTransactions = transactions.filter { it.date in month }
     val categoriesById = categories.associateBy { it.id }
 
-    var incomeSum = 0.0
-    var expenseSum = 0.0
+    var income = 0L
+    var expense = 0L
     for (tx in monthTransactions) {
-        if (tx.type == TransactionType.INCOME) incomeSum += tx.amount else expenseSum += tx.amount
+        if (tx.type == TransactionType.INCOME) income += tx.amountCents else expense += tx.amountCents
     }
-    val income = incomeSum.roundCents()
-    val expense = expenseSum.roundCents()
 
     // ── Ritmo do mês ──
     val daysInMonth = now.getActualMaximum(Calendar.DAY_OF_MONTH)
     val today = now.get(Calendar.DAY_OF_MONTH)
     val daysLeft = daysInMonth - today + 1
     val pending = scheduled.filter { !it.isPaid }
-    val pendingThisMonth = pending.filter { it.dueDate <= month.to }.sumOf { it.amount }
-    val accountsBalance = accounts.sumOf { it.balance }
+    val pendingThisMonth = pending.filter { it.dueDate <= month.to }.sumOf { it.amountCents }
+    val accountsBalance = accounts.filter { !it.archived }.sumOf { it.balanceCents }
 
     val marks = MutableList(daysInMonth) { BillMark.NONE }
     val cursor = Calendar.getInstance()
@@ -142,20 +139,20 @@ internal fun buildDashboard(
             CategoryExpenseSlice(
                 categoryName = cat?.displayName ?: "Sem categoria",
                 colorHex     = cat?.colorHex ?: "#9E9E9E",
-                amount       = txns.sumOf { it.amount }
+                amountCents  = txns.sumOf { it.amountCents }
             )
         }
-        .sortedByDescending { it.amount }
+        .sortedByDescending { it.amountCents }
 
     return DashboardUiState(
-        accountsBalance    = accountsBalance,
-        pendingThisMonth   = pendingThisMonth,
-        freeAfterBills     = accountsBalance - pendingThisMonth,
+        accountsBalanceCents  = accountsBalance,
+        pendingThisMonthCents = pendingThisMonth,
+        freeAfterBillsCents   = accountsBalance - pendingThisMonth,
         daysLeft           = daysLeft,
         today              = today,
         billMarks          = marks,
-        totalIncome        = income,
-        totalExpense       = expense,
+        totalIncomeCents   = income,
+        totalExpenseCents  = expense,
         categoryExpenses   = categoryExpenses,
         urgentExpenses     = urgent,
         upcomingExpenses   = upcoming,

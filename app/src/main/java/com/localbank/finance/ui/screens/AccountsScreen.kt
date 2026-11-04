@@ -1,5 +1,6 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.ui.util.cents
 import com.localbank.finance.ui.util.rememberCurrencyFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -78,13 +79,25 @@ fun AccountsScreen(
                 }
             }
         } else {
+            val (archived, active) = accounts.partition { it.archived }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(accounts, key = { it.id }) { account ->
+                items(active, key = { it.id }) { account ->
                     AccountCard(account = account, currency = currency,
                         onDelete = { showDeleteDialog = account })
+                }
+                if (archived.isNotEmpty()) {
+                    item {
+                        Text("Arquivadas", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            color = OnDarkTextSecondary, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+                    }
+                    items(archived, key = { it.id }) { account ->
+                        AccountCard(account = account, currency = currency,
+                            onDelete = { showDeleteDialog = account },
+                            onUnarchive = { viewModel.setAccountArchived(account, false) })
+                    }
                 }
                 item { Spacer(Modifier.height(80.dp)) }
             }
@@ -108,8 +121,10 @@ fun AccountsScreen(
         }
 
         val (txCount, schedCount) = deleteWarning ?: (0 to 0)
+        val canArchive = !account.archived && (txCount > 0 || schedCount > 0)
         val warning = buildString {
-            append("Serão apagados ")
+            if (canArchive) append("Para manter o histórico, arquive: a conta some dos lançamentos novos e do saldo do painel, mas os lançamentos continuam nos relatórios.\n\nSe excluir, ")
+            append(if (canArchive) "serão apagados " else "Serão apagados ")
             if (txCount > 0) append("$txCount lançamentos")
             if (txCount > 0 && schedCount > 0) append(" e ")
             if (schedCount > 0) append("$schedCount contas a pagar")
@@ -120,14 +135,23 @@ fun AccountsScreen(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null; deleteWarning = null },
             containerColor = DarkCard,
-            title = { Text("Excluir \"${account.name}\"?", color = OnDarkText) },
+            title = { Text(if (canArchive) "Arquivar ou excluir \"${account.name}\"?" else "Excluir \"${account.name}\"?", color = OnDarkText) },
             text = { Text(warning, color = OnDarkTextSecondary) },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteAccount(account)
-                    showDeleteDialog = null
-                    deleteWarning = null
-                }) { Text("Excluir", color = ExpenseRed) }
+                Row {
+                    TextButton(onClick = {
+                        viewModel.deleteAccount(account)
+                        showDeleteDialog = null
+                        deleteWarning = null
+                    }) { Text("Excluir", color = ExpenseRed) }
+                    if (canArchive) {
+                        TextButton(onClick = {
+                            viewModel.setAccountArchived(account, true)
+                            showDeleteDialog = null
+                            deleteWarning = null
+                        }) { Text("Arquivar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }
+                    }
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = null; deleteWarning = null }) {
@@ -139,7 +163,7 @@ fun AccountsScreen(
 }
 
 @Composable
-fun AccountCard(account: Account, currency: NumberFormat, onDelete: () -> Unit) {
+fun AccountCard(account: Account, currency: NumberFormat, onDelete: () -> Unit, onUnarchive: (() -> Unit)? = null) {
     val appColors = LocalAppColors.current
     val icon = when (account.type) {
         AccountType.WALLET   -> Icons.Default.AccountBalanceWallet
@@ -171,13 +195,19 @@ fun AccountCard(account: Account, currency: NumberFormat, onDelete: () -> Unit) 
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(account.name, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = OnDarkText)
-                Text(typeLabel, fontSize = 12.sp, color = OnDarkTextSecondary)
+                Text(if (account.archived) "$typeLabel · arquivada" else typeLabel,
+                    fontSize = 12.sp, color = OnDarkTextSecondary)
+                if (onUnarchive != null) {
+                    TextButton(onClick = onUnarchive, contentPadding = PaddingValues(0.dp)) {
+                        Text("Desarquivar", fontSize = 13.sp, color = appColors.primary)
+                    }
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    currency.format(account.balance),
+                    currency.cents(account.balanceCents),
                     fontWeight = FontWeight.Bold,
-                    color = if (account.balance >= 0) IncomeGreen else ExpenseRed
+                    color = if (account.balanceCents >= 0) IncomeGreen else ExpenseRed
                 )
                 IconButton(onClick = onDelete, modifier = Modifier.minimumInteractiveComponentSize()) {
                     Icon(Icons.Default.Delete, "Excluir", modifier = Modifier.size(20.dp),

@@ -71,7 +71,7 @@ fun MainNavigation(
 
     var showAddEntry by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val accounts by expenseViewModel.accounts.collectAsState()
+    val accounts by expenseViewModel.activeAccounts.collectAsState()
     val categories by expenseViewModel.categories.collectAsState()
 
     // Alerta de orçamento vale para lançamentos feitos de qualquer aba

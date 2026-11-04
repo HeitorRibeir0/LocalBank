@@ -49,7 +49,7 @@ class NotificationWorker(
         val manager  = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         toNotify.forEach { (expense, days, stage) ->
-            val value = currency.format(expense.amount)
+            val value = currency.format(expense.amountCents / 100.0)
             val message = when {
                 days < 0  -> "${expense.description} está atrasada ($value)"
                 days == 0 -> "${expense.description} vence hoje! ($value)"

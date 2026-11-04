@@ -2,7 +2,7 @@ package com.localbank.finance.ui.screens
 
 import com.localbank.finance.ui.util.rememberCurrencyFormat
 import com.localbank.finance.ui.util.rememberDateFormat
-import com.localbank.finance.util.toCents
+import com.localbank.finance.ui.util.cents
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -83,15 +83,15 @@ fun SavingsGoalScreen(viewModel: SavingsGoalViewModel) {
             }
         } else {
             item(key = "total") {
-                val saved = goals.sumOf { it.savedAmount }
-                val target = goals.sumOf { it.targetAmount }
+                val saved = goals.sumOf { it.savedCents }
+                val target = goals.sumOf { it.targetCents }
                 Column(Modifier.padding(top = 12.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("O lar já guardou", fontSize = 15.sp, color = c.textSecondary)
-                    Text(currency.format(saved), style = MaterialTheme.typography.displayLarge.copy(fontSize = 44.sp,
+                    Text(currency.cents(saved), style = MaterialTheme.typography.displayLarge.copy(fontSize = 44.sp,
                         lineHeight = 50.sp), color = c.textPrimary, maxLines = 1)
                     Text(
-                        if (goals.size == 1) "de ${currency.format(target)} na meta"
-                        else "de ${currency.format(target)} nas ${goals.size} metas",
+                        if (goals.size == 1) "de ${currency.cents(target)} na meta"
+                        else "de ${currency.cents(target)} nas ${goals.size} metas",
                         fontSize = 14.sp, color = c.textSecondary
                     )
                 }
@@ -135,12 +135,12 @@ fun SavingsGoalScreen(viewModel: SavingsGoalViewModel) {
         GoalFormDialog(
             title = "Editar meta",
             initialName = goal.name,
-            initialTarget = goal.targetAmount.toCents().toString(),
+            initialTarget = goal.targetCents.toString(),
             initialColor = goal.colorHex,
             initialDeadline = goal.deadline,
             onDismiss = { showEditDialog = null },
             onConfirm = { name, target, color, deadline ->
-                viewModel.updateGoal(goal.copy(name = name, targetAmount = target,
+                viewModel.updateGoal(goal.copy(name = name, targetCents = target,
                     colorHex = color, deadline = deadline))
                 showEditDialog = null
             }
@@ -176,9 +176,9 @@ private fun GoalCard(
 ) {
     val c = LocalAppColors.current
     val monthYear = rememberDateFormat("MMMM 'de' yyyy")
-    val progress = if (goal.targetAmount > 0) (goal.savedAmount / goal.targetAmount).toFloat() else 0f
+    val progress = if (goal.targetCents > 0) goal.savedCents.toFloat() / goal.targetCents else 0f
     val isComplete = progress >= 1f
-    val remaining = (goal.targetAmount - goal.savedAmount).coerceAtLeast(0.0)
+    val remaining = (goal.targetCents - goal.savedCents).coerceAtLeast(0)
     val goalColor = try { Color(android.graphics.Color.parseColor(goal.colorHex)) }
                     catch (_: Exception) { c.brandPrimary }
     var menuOpen by remember { mutableStateOf(false) }
@@ -189,11 +189,11 @@ private fun GoalCard(
     }
     val plan = when {
         isComplete -> "Meta concluída."
-        goal.deadline == null -> "Faltam ${currency.format(remaining)}."
+        goal.deadline == null -> "Faltam ${currency.cents(remaining)}."
         else -> {
             val months = monthsUntil(goal.deadline)
-            if (months <= 0) "O prazo passou. Faltam ${currency.format(remaining)}."
-            else "Guardar ${currency.format(remaining / months)} por mês para chegar no prazo."
+            if (months <= 0) "O prazo passou. Faltam ${currency.cents(remaining)}."
+            else "Guardar ${currency.cents((remaining + months - 1) / months)} por mês para chegar no prazo."
         }
     }
 
@@ -229,9 +229,9 @@ private fun GoalCard(
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom) {
-                Text(currency.format(goal.savedAmount), fontWeight = FontWeight.Bold, fontSize = 20.sp,
+                Text(currency.cents(goal.savedCents), fontWeight = FontWeight.Bold, fontSize = 20.sp,
                     color = c.textPrimary)
-                Text("de ${currency.format(goal.targetAmount)}", fontSize = 13.sp, color = c.textSecondary)
+                Text("de ${currency.cents(goal.targetCents)}", fontSize = 13.sp, color = c.textSecondary)
             }
         }
 
@@ -264,11 +264,11 @@ private fun DepositDialog(
     goal: SavingsGoal,
     currency: NumberFormat,
     onDismiss: () -> Unit,
-    onConfirm: (Double) -> Unit
+    onConfirm: (Long) -> Unit
 ) {
     val appColors = LocalAppColors.current
     var amountRaw by remember { mutableStateOf("") }
-    val remaining = goal.targetAmount - goal.savedAmount
+    val remaining = goal.targetCents - goal.savedCents
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -279,7 +279,7 @@ private fun DepositDialog(
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Faltam ${currency.format(remaining)} para a meta.",
+                Text("Faltam ${currency.cents(remaining)} para a meta.",
                     color = OnDarkTextSecondary, fontSize = 13.sp)
                 CurrencyField(
                     rawValue = amountRaw,
@@ -290,7 +290,7 @@ private fun DepositDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                val amount = (amountRaw.toLongOrNull() ?: 0) / 100.0
+                val amount = amountRaw.toLongOrNull() ?: 0L
                 if (amount > 0) onConfirm(amount)
             }) {
                 Text("Confirmar", color = appColors.primary, fontWeight = FontWeight.SemiBold)
@@ -310,7 +310,7 @@ private fun GoalFormDialog(
     initialColor: String = "#4CAF50",
     initialDeadline: Long? = null,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, target: Double, colorHex: String, deadline: Long?) -> Unit
+    onConfirm: (name: String, targetCents: Long, colorHex: String, deadline: Long?) -> Unit
 ) {
     val appColors = LocalAppColors.current
     val sdf = rememberDateFormat("dd/MM/yyyy")
@@ -392,7 +392,7 @@ private fun GoalFormDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                val amount = (amountRaw.toLongOrNull() ?: 0) / 100.0
+                val amount = amountRaw.toLongOrNull() ?: 0L
                 if (name.isBlank() || amount <= 0) { showError = true; return@TextButton }
                 val deadline = if (deadlineText.isNotBlank())
                     try { sdf.parse(deadlineText)?.time } catch (_: Exception) { null }

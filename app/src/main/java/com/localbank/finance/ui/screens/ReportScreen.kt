@@ -1,6 +1,8 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.ui.util.cents
 import com.localbank.finance.ui.util.rememberCurrencyFormat
+import com.localbank.finance.util.toReais
 import com.localbank.finance.ui.util.rememberDateFormat
 import com.localbank.finance.ui.util.PtBr
 import androidx.compose.foundation.background
@@ -97,7 +99,7 @@ fun ReportScreen(viewModel: ReportViewModel) {
                         Spacer(Modifier.height(12.dp))
                         DonutChart(
                             slices = state.categoryExpenses.map {
-                                DonutSlice(it.categoryName, it.totalAmount, it.colorHex)
+                                DonutSlice(it.categoryName, it.totalCents.toReais(), it.colorHex)
                             }
                         )
                     }
@@ -106,7 +108,7 @@ fun ReportScreen(viewModel: ReportViewModel) {
         }
 
         // Trend chart (linha de gastos)
-        if (state.monthlyComparison.any { it.expense > 0 }) {
+        if (state.monthlyComparison.any { it.expenseCents > 0 }) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -120,7 +122,7 @@ fun ReportScreen(viewModel: ReportViewModel) {
                         Spacer(Modifier.height(12.dp))
                         TrendChart(
                             points = state.monthlyComparison.map {
-                                TrendPoint(it.monthLabel, it.expense)
+                                TrendPoint(it.monthLabel, it.expenseCents.toReais())
                             }
                         )
                     }
@@ -143,7 +145,7 @@ fun ReportScreen(viewModel: ReportViewModel) {
                         Spacer(Modifier.height(12.dp))
                         BarChart(
                             data = state.monthlyComparison.map {
-                                BarChartEntry(it.monthLabel, it.income, it.expense)
+                                BarChartEntry(it.monthLabel, it.incomeCents.toReais(), it.expenseCents.toReais())
                             }
                         )
                     }
@@ -181,7 +183,7 @@ fun ReportScreen(viewModel: ReportViewModel) {
                         )
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = currency.format(catExpense.totalAmount),
+                                text = currency.cents(catExpense.totalCents),
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 14.sp,
                                 color = OnDarkText
@@ -209,7 +211,7 @@ fun ReportScreen(viewModel: ReportViewModel) {
         }
 
         // Empty state
-        if (state.categoryExpenses.isEmpty() && state.monthlyComparison.all { it.income == 0.0 && it.expense == 0.0 }) {
+        if (state.categoryExpenses.isEmpty() && state.monthlyComparison.all { it.incomeCents == 0L && it.expenseCents == 0L }) {
             item {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
@@ -230,7 +232,7 @@ fun ReportScreen(viewModel: ReportViewModel) {
 @Composable
 private fun SemesterReportCard(report: SemesterReport, currency: NumberFormat) {
     val appColors = LocalAppColors.current
-    val isPositive = report.balance >= 0
+    val isPositive = report.balanceCents >= 0
     val topCatColor = try { Color(android.graphics.Color.parseColor(report.topCategoryColor)) }
                       catch (_: Exception) { appColors.primary }
 
@@ -249,26 +251,26 @@ private fun SemesterReportCard(report: SemesterReport, currency: NumberFormat) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SemesterStatBox(
                     label = "Entradas",
-                    value = currency.format(report.totalIncome),
+                    value = currency.cents(report.totalIncomeCents),
                     color = IncomeGreen,
                     modifier = Modifier.weight(1f)
                 )
                 SemesterStatBox(
                     label = "Saídas",
-                    value = currency.format(report.totalExpense),
+                    value = currency.cents(report.totalExpenseCents),
                     color = ExpenseRed,
                     modifier = Modifier.weight(1f)
                 )
                 SemesterStatBox(
                     label = "Saldo",
-                    value = currency.format(report.balance),
+                    value = currency.cents(report.balanceCents),
                     color = if (isPositive) IncomeGreen else ExpenseRed,
                     modifier = Modifier.weight(1f)
                 )
             }
 
             // Taxa de economia
-            if (report.totalIncome > 0) {
+            if (report.totalIncomeCents > 0) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(
                         Modifier.fillMaxWidth(),

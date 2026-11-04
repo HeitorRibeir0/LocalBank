@@ -7,10 +7,10 @@ import com.localbank.finance.data.model.*
 import com.localbank.finance.data.repository.FinanceRepository
 import com.localbank.finance.ui.util.normalizeCategoryName
 import com.localbank.finance.ui.util.PtBr
-import com.localbank.finance.util.roundCents
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -62,21 +62,31 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
             initialValue = emptyList()
         )
 
+    // Para os seletores de conta: arquivada não recebe lançamento novo
+    val activeAccounts: StateFlow<List<Account>> = repository
+        .getAllAccounts()
+        .map { list -> list.filter { !it.archived } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
     fun addTransaction(
         accountId: String,
         categoryId: String?,
-        amount: Double,
+        amountCents: Long,
         type: TransactionType,
         description: String,
         date: Long = System.currentTimeMillis()
     ) {
-        require(amount > 0) { "Valor deve ser positivo" }
+        require(amountCents > 0) { "Valor deve ser positivo" }
         viewModelScope.launch {
             repository.insertTransaction(
                 Transaction(
                     accountId   = accountId,
                     categoryId  = categoryId,
-                    amount      = amount.roundCents(),
+                    amountCents = amountCents,
                     type        = type,
                     description = description,
                     date        = date,
@@ -93,8 +103,8 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
         val month = DateRanges.month()
         val budget = repository.getBudgetForCategory(categoryId, DateRanges.monthKey()) ?: return
         val spent = repository.getSpentForCategory(categoryId, month.from, month.to)
-        if (budget.limitAmount <= 0) return   // evita divisão por zero (limite zerado/negativo)
-        val pct = spent / budget.limitAmount
+        if (budget.limitCents <= 0) return   // evita divisão por zero (limite zerado/negativo)
+        val pct = spent.toDouble() / budget.limitCents
         val categoryName = categories.value.find { it.id == categoryId }?.name ?: "categoria"
 
         when {
@@ -122,19 +132,19 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
     fun addScheduledExpense(
         accountId: String,
         categoryId: String?,
-        amount: Double,
+        amountCents: Long,
         description: String,
         dueDate: Long,
         isRecurring: Boolean = false,
         recurrenceRule: RecurrenceRule? = null
     ) {
-        require(amount > 0) { "Valor deve ser positivo" }
+        require(amountCents > 0) { "Valor deve ser positivo" }
         viewModelScope.launch {
             repository.insertScheduled(
                 ScheduledExpense(
                     accountId      = accountId,
                     categoryId     = categoryId,
-                    amount         = amount.roundCents(),
+                    amountCents    = amountCents,
                     description    = description,
                     dueDate        = dueDate,
                     isRecurring    = isRecurring,
@@ -203,8 +213,14 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
     fun addAccount(name: String, type: AccountType) {
         viewModelScope.launch {
             repository.insertAccount(
-                Account(name = name, type = type, balance = 0.0)
+                Account(name = name, type = type, balanceCents = 0)
             )
+        }
+    }
+
+    fun setAccountArchived(account: Account, archived: Boolean) {
+        viewModelScope.launch {
+            repository.setAccountArchived(account, archived)
         }
     }
 

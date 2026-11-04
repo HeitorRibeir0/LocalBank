@@ -20,12 +20,12 @@ class SavingsGoalViewModel(private val repository: FinanceRepository) : ViewMode
             initialValue = emptyList()
         )
 
-    fun addGoal(name: String, target: Double, colorHex: String, deadline: Long?) {
+    fun addGoal(name: String, targetCents: Long, colorHex: String, deadline: Long?) {
         viewModelScope.launch {
             repository.insertSavingsGoal(
                 SavingsGoal(
                     name = name,
-                    targetAmount = target,
+                    targetCents = targetCents,
                     colorHex = colorHex,
                     deadline = deadline,
                     createdBy = AuthManager.displayName
@@ -34,9 +34,9 @@ class SavingsGoalViewModel(private val repository: FinanceRepository) : ViewMode
         }
     }
 
-    fun deposit(goal: SavingsGoal, amount: Double) {
+    fun deposit(goal: SavingsGoal, cents: Long) {
         viewModelScope.launch {
-            repository.depositToGoal(goal.id, amount)
+            repository.depositToGoal(goal.id, cents)
         }
     }
 

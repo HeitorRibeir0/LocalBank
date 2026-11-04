@@ -26,9 +26,12 @@ fun rememberAmountFormat(): NumberFormat =
         }
     }
 
+/** Formata centavos. Nunca passe centavos direto para format(): 12550 viraria "R$ 12.550,00". */
+fun NumberFormat.cents(cents: Long): String = format(cents / 100.0)
+
 /** "+1.234,50" / "−1.234,50" — o sinal acompanha a cor, para não depender só dela. */
-fun NumberFormat.signed(value: Double, positive: Boolean): String =
-    (if (positive) "+" else "−") + format(kotlin.math.abs(value))
+fun NumberFormat.signed(cents: Long, positive: Boolean): String =
+    (if (positive) "+" else "−") + this.cents(kotlin.math.abs(cents))
 
 @Composable
 fun rememberDateFormat(pattern: String): SimpleDateFormat =

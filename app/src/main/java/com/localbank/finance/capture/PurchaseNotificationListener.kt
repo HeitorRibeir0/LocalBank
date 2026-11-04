@@ -34,7 +34,7 @@ class PurchaseNotificationListener : NotificationListenerService() {
         val detectedAt = sbn.postTime
 
         val capture = PendingCapture(
-            amount = parsed.amountCents / 100.0,
+            amountCents = parsed.amountCents,
             merchant = parsed.merchant,
             sourceLabel = label,
             sourcePackage = sbn.packageName,

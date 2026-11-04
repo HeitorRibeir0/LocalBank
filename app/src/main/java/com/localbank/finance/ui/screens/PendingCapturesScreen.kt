@@ -30,6 +30,7 @@ import com.localbank.finance.data.model.PendingCapture
 import com.localbank.finance.data.model.TransactionType
 import com.localbank.finance.data.model.displayName
 import com.localbank.finance.ui.components.DropdownSelector
+import com.localbank.finance.ui.util.cents
 import com.localbank.finance.ui.util.rememberCurrencyFormat
 import com.localbank.finance.ui.util.rememberDateFormat
 import com.localbank.finance.ui.viewmodel.ExpenseViewModel
@@ -54,7 +55,7 @@ fun PendingCapturesScreen(
     val capturesFlow = remember(dao) { dao.observeAll() }
     val captures by capturesFlow.collectAsState(initial = emptyList())
 
-    val accounts by viewModel.accounts.collectAsState()
+    val accounts by viewModel.activeAccounts.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val expenseCategories = remember(categories) {
         categories.filter { it.type == TransactionType.EXPENSE }
@@ -193,7 +194,7 @@ private fun CaptureCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    currency.format(capture.amount),
+                    currency.cents(capture.amountCents),
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     color = appColors.textPrimary

@@ -18,7 +18,7 @@ data class PendingCapture(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
 
-    val amount: Double,          // valor da compra, sempre positivo
+    val amountCents: Long,       // valor da compra em centavos, sempre positivo
 
     val merchant: String,        // estabelecimento lido da notificação
 

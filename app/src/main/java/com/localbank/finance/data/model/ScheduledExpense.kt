@@ -35,7 +35,7 @@ data class ScheduledExpense(
 
     val categoryId: String?,
 
-    val amount: Double,
+    val amountCents: Long,
 
     val description: String,        // ex: "Aluguel", "Netflix"
 

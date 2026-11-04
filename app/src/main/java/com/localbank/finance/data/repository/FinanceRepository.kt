@@ -49,6 +49,11 @@ class FinanceRepository(
         return txCount to schedCount
     }
 
+    suspend fun setAccountArchived(account: Account, archived: Boolean) {
+        accountDao.setArchived(account.id, archived)
+        syncPush { s, hid -> s.pushAccount(hid, account.copy(archived = archived)) }
+    }
+
     suspend fun deleteAccount(account: Account) {
         // O cascade local apaga transações e agendamentos da conta; no remoto é preciso apagar à mão
         val txIds = transactionDao.getAllOnce().filter { it.accountId == account.id }.map { it.id }
@@ -102,23 +107,15 @@ class FinanceRepository(
     fun getMonthlyTotals(from: Long, to: Long): Flow<List<TransactionDao.MonthlyTotal>> =
         transactionDao.monthlyTotals(from, to)
 
-    suspend fun getTotalIncome(from: Long, to: Long): Double =
-        transactionDao.getTotalIncome(from, to)
-
-    suspend fun getTotalExpense(from: Long, to: Long): Double =
-        transactionDao.getTotalExpense(from, to)
-
-    suspend fun getTotalExpenseByCategory(categoryId: String, from: Long, to: Long): Double =
-        transactionDao.getTotalExpenseByCategory(categoryId, from, to)
-
     suspend fun insertTransaction(transaction: Transaction) {
-        require(transaction.amount > 0) { "Valor deve ser positivo" }
+        require(transaction.amountCents > 0) { "Valor deve ser positivo" }
         transactionDao.insert(transaction)
         syncPush { s, hid -> s.pushTransaction(hid, transaction) }
         refreshBalances(transaction.accountId)
     }
 
     suspend fun updateTransaction(old: Transaction, new: Transaction) {
+        require(new.amountCents > 0) { "Valor deve ser positivo" }
         transactionDao.insert(new)
         syncPush { s, hid -> s.pushTransaction(hid, new) }
         refreshBalances(old.accountId, new.accountId)
@@ -153,7 +150,7 @@ class FinanceRepository(
                 val transaction = Transaction(
                     accountId = accountId,
                     categoryId = categoryId,
-                    amount = capture.amount,
+                    amountCents = capture.amountCents,
                     type = TransactionType.EXPENSE,
                     description = description,
                     date = capture.detectedAt
@@ -167,7 +164,7 @@ class FinanceRepository(
             tx = Transaction(
                 accountId = accountId,
                 categoryId = categoryId,
-                amount = capture.amount,
+                amountCents = capture.amountCents,
                 type = TransactionType.EXPENSE,
                 description = description,
                 date = capture.detectedAt
@@ -248,7 +245,7 @@ class FinanceRepository(
         val transaction = Transaction(
             accountId   = expense.accountId,
             categoryId  = expense.categoryId,
-            amount      = expense.amount,
+            amountCents = expense.amountCents,
             type        = TransactionType.EXPENSE,
             description = expense.description,
             date        = System.currentTimeMillis(),
@@ -295,7 +292,7 @@ class FinanceRepository(
     suspend fun getBudgetForCategory(categoryId: String, monthYear: String): Budget? =
         budgetDao.getByMonthOnce(monthYear).find { it.categoryId == categoryId }
 
-    suspend fun getSpentForCategory(categoryId: String, from: Long, to: Long): Double =
+    suspend fun getSpentForCategory(categoryId: String, from: Long, to: Long): Long =
         transactionDao.getTotalExpenseByCategory(categoryId, from, to)
 
     fun getAllBudgets(): Flow<List<Budget>> =
@@ -330,15 +327,15 @@ class FinanceRepository(
 
     /** Atualiza nome, alvo, cor e prazo — o valor guardado só muda por [depositToGoal]. */
     suspend fun updateSavingsGoalMeta(goal: SavingsGoal) {
-        savingsGoalDao.updateMeta(goal.id, goal.name, goal.targetAmount, goal.colorHex, goal.deadline)
+        savingsGoalDao.updateMeta(goal.id, goal.name, goal.targetCents, goal.colorHex, goal.deadline)
         syncPush { s, hid -> s.pushSavingsGoalMeta(hid, goal) }
     }
 
-    suspend fun depositToGoal(goalId: String, amount: Double) {
+    suspend fun depositToGoal(goalId: String, cents: Long) {
         val dao = savingsGoalDao
-        val before = dao.getById(goalId)?.savedAmount ?: return
-        dao.addToSaved(goalId, amount)
-        val applied = (dao.getById(goalId)?.savedAmount ?: before) - before
+        val before = dao.getById(goalId)?.savedCents ?: return
+        dao.addToSaved(goalId, cents)
+        val applied = (dao.getById(goalId)?.savedCents ?: before) - before
         if (applied > 0) syncPush { s, hid -> s.incrementGoalSaved(hid, goalId, applied) }
     }
 

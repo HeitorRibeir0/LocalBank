@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.localbank.finance.data.model.ScheduledExpense
 import com.localbank.finance.data.model.Transaction
 import com.localbank.finance.data.model.TransactionType
+import com.localbank.finance.ui.util.cents
 import com.localbank.finance.ui.util.label
 import com.localbank.finance.ui.util.rememberAmountFormat
 import com.localbank.finance.ui.util.rememberCurrencyFormat
@@ -83,8 +84,8 @@ private fun MonthRhythm(state: DashboardUiState, c: AppColors) {
     val currency = rememberCurrencyFormat()
     val amount = rememberAmountFormat()
     val monthName = rememberDateFormat("MMMM").format(Date()).replaceFirstChar { it.uppercase() }
-    val negative = state.accountsBalance < 0
-    val short = state.freeAfterBills < 0
+    val negative = state.accountsBalanceCents < 0
+    val short = state.freeAfterBillsCents < 0
 
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text(monthName, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.textPrimary,
@@ -92,7 +93,7 @@ private fun MonthRhythm(state: DashboardUiState, c: AppColors) {
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Dinheiro nas contas", fontSize = 15.sp, color = c.textSecondary)
-            val value = currency.format(state.accountsBalance)
+            val value = currency.cents(state.accountsBalanceCents)
             Text(
                 value,
                 style = MaterialTheme.typography.displayLarge.let {
@@ -108,9 +109,9 @@ private fun MonthRhythm(state: DashboardUiState, c: AppColors) {
             )
             Text(
                 when {
-                    state.pendingThisMonth <= 0 -> "Nenhuma conta a pagar até o fim do mês."
-                    short -> "Faltam ${currency.format(-state.freeAfterBills)} para cobrir as contas até o fim do mês."
-                    else -> "Sobram ${currency.format(state.freeAfterBills)} depois das contas que vencem até o fim do mês."
+                    state.pendingThisMonthCents <= 0 -> "Nenhuma conta a pagar até o fim do mês."
+                    short -> "Faltam ${currency.cents(-state.freeAfterBillsCents)} para cobrir as contas até o fim do mês."
+                    else -> "Sobram ${currency.cents(state.freeAfterBillsCents)} depois das contas que vencem até o fim do mês."
                 },
                 fontSize = 14.sp, lineHeight = 20.sp,
                 color = if (short) c.error else c.textSecondary
@@ -120,9 +121,9 @@ private fun MonthRhythm(state: DashboardUiState, c: AppColors) {
         DayStrip(state, c)
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Stat("Entrou", amount.signed(state.totalIncome, true), c.success, c, Modifier.weight(1f))
-            Stat("Saiu", amount.signed(state.totalExpense, false), c.error, c, Modifier.weight(1f))
-            Stat("A pagar", amount.format(state.pendingThisMonth), c.textPrimary, c, Modifier.weight(1f))
+            Stat("Entrou", amount.signed(state.totalIncomeCents, true), c.success, c, Modifier.weight(1f))
+            Stat("Saiu", amount.signed(state.totalExpenseCents, false), c.error, c, Modifier.weight(1f))
+            Stat("A pagar", amount.cents(state.pendingThisMonthCents), c.textPrimary, c, Modifier.weight(1f))
         }
     }
 }
@@ -232,7 +233,7 @@ private fun DueSoon(
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(amount.format(expense.amount), fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                        Text(amount.cents(expense.amountCents), fontSize = 16.sp, fontWeight = FontWeight.Bold,
                             color = c.textPrimary)
                         if (urgent) {
                             OutlinedButton(
@@ -259,7 +260,7 @@ private fun DueSoon(
 private fun WhereItWent(state: DashboardUiState, onOpenReport: () -> Unit, c: AppColors) {
     val amount = rememberAmountFormat()
     val slices = state.categoryExpenses.take(6)
-    val max = slices.first().amount.takeIf { it > 0 } ?: 1.0
+    val max = slices.first().amountCents.takeIf { it > 0 } ?: 1L
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -273,13 +274,13 @@ private fun WhereItWent(state: DashboardUiState, onOpenReport: () -> Unit, c: Ap
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(slice.categoryName, fontSize = 14.sp, color = c.textPrimary)
-                    Text(amount.format(slice.amount), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    Text(amount.cents(slice.amountCents), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                         color = c.textPrimary)
                 }
                 Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(c.card)) {
                     Box(
                         Modifier.fillMaxHeight()
-                            .fillMaxWidth((slice.amount / max).toFloat().coerceIn(0.02f, 1f))
+                            .fillMaxWidth((slice.amountCents.toFloat() / max).coerceIn(0.02f, 1f))
                             .clip(RoundedCornerShape(4.dp))
                             // Só a maior categoria ganha cor: é a que pede atenção
                             .background(if (i == 0) c.error else c.textMuted.copy(alpha = 0.55f))
@@ -315,7 +316,7 @@ private fun RecentTransactions(state: DashboardUiState, c: AppColors) {
                     Text("$category, ${relativeDay(tx, shortDate)}", fontSize = 13.sp, color = c.textSecondary,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(amount.signed(tx.amount, income), fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                Text(amount.signed(tx.amountCents, income), fontSize = 16.sp, fontWeight = FontWeight.Bold,
                     color = if (income) c.success else c.error)
             }
         }

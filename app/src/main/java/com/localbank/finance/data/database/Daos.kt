@@ -19,6 +19,9 @@ interface AccountDao {
     @Query("SELECT * FROM accounts ORDER BY createdAt DESC")
     fun getAllAccounts(): Flow<List<Account>>
 
+    @Query("UPDATE accounts SET archived = :archived WHERE id = :id")
+    suspend fun setArchived(id: String, archived: Boolean)
+
     @Query("SELECT * FROM accounts WHERE id = :id")
     suspend fun getById(id: String): Account?
 
@@ -35,9 +38,6 @@ interface AccountDao {
     @Update
     suspend fun update(account: Account)
 
-    @Query("UPDATE accounts SET balance = balance + :delta WHERE id = :accountId")
-    suspend fun updateBalance(accountId: String, delta: Double)
-
     @Delete
     suspend fun delete(account: Account)
 
@@ -47,7 +47,7 @@ interface AccountDao {
     @Query("DELETE FROM accounts")
     suspend fun deleteAll()
 
-    @Query("UPDATE accounts SET balance = 0")
+    @Query("UPDATE accounts SET balanceCents = 0")
     suspend fun resetAllBalances()
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -56,16 +56,16 @@ interface AccountDao {
     // Saldo = soma das transações da conta. Recalcular em vez de aplicar deltas
     // evita divergência quando edições/remoções chegam de outro aparelho.
     @Query("""
-        UPDATE accounts SET balance = (
-            SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE -amount END), 0.0)
+        UPDATE accounts SET balanceCents = (
+            SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amountCents ELSE -amountCents END), 0)
             FROM transactions WHERE transactions.accountId = accounts.id
         ) WHERE id = :accountId
     """)
     suspend fun recalculateBalance(accountId: String)
 
     @Query("""
-        UPDATE accounts SET balance = (
-            SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE -amount END), 0.0)
+        UPDATE accounts SET balanceCents = (
+            SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amountCents ELSE -amountCents END), 0)
             FROM transactions WHERE transactions.accountId = accounts.id
         )
     """)
@@ -73,13 +73,13 @@ interface AccountDao {
 
     // Upsert que preserva o saldo local se a conta já existir
     @Query("""
-        INSERT OR IGNORE INTO accounts (id, name, type, balance, currency, createdAt)
-        VALUES (:id, :name, :type, :balance, :currency, :createdAt)
+        INSERT OR IGNORE INTO accounts (id, name, type, balanceCents, currency, archived, createdAt)
+        VALUES (:id, :name, :type, 0, :currency, :archived, :createdAt)
     """)
-    suspend fun insertIfNotExists(id: String, name: String, type: String, balance: Double, currency: String, createdAt: Long)
+    suspend fun insertIfNotExists(id: String, name: String, type: String, currency: String, archived: Boolean, createdAt: Long)
 
-    @Query("UPDATE accounts SET name = :name, type = :type, currency = :currency WHERE id = :id")
-    suspend fun updateMetaOnly(id: String, name: String, type: String, currency: String)
+    @Query("UPDATE accounts SET name = :name, type = :type, currency = :currency, archived = :archived WHERE id = :id")
+    suspend fun updateMetaOnly(id: String, name: String, type: String, currency: String, archived: Boolean)
 
     @Query("SELECT id FROM accounts")
     suspend fun getAllIds(): List<String>
@@ -154,11 +154,11 @@ interface TransactionDao {
     // despesa total por categoria num período (para orçamentos)
     data class CategoryTotal(
         val categoryId: String?,
-        val total: Double
+        val total: Long
     )
 
     @Query("""
-        SELECT categoryId, SUM(amount) AS total FROM transactions
+        SELECT categoryId, SUM(amountCents) AS total FROM transactions
         WHERE type = 'EXPENSE' AND date BETWEEN :from AND :to
         GROUP BY categoryId
     """)
@@ -168,14 +168,14 @@ interface TransactionDao {
     data class MonthlyTotal(
         val monthYm: String,
         val type: String,
-        val total: Double
+        val total: Long
     )
 
     @Query("""
         SELECT
             strftime('%Y-%m', date / 1000, 'unixepoch', 'localtime') AS monthYm,
             type,
-            SUM(amount) AS total
+            SUM(amountCents) AS total
         FROM transactions
         WHERE date BETWEEN :from AND :to
         GROUP BY monthYm, type
@@ -185,24 +185,24 @@ interface TransactionDao {
 
     // soma de entradas num período
     @Query("""
-        SELECT COALESCE(SUM(amount), 0.0) FROM transactions
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
         WHERE type = 'INCOME' AND date BETWEEN :from AND :to
     """)
-    suspend fun getTotalIncome(from: Long, to: Long): Double
+    suspend fun getTotalIncome(from: Long, to: Long): Long
 
     // soma de saídas num período
     @Query("""
-        SELECT COALESCE(SUM(amount), 0.0) FROM transactions
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
         WHERE type = 'EXPENSE' AND date BETWEEN :from AND :to
     """)
-    suspend fun getTotalExpense(from: Long, to: Long): Double
+    suspend fun getTotalExpense(from: Long, to: Long): Long
 
     // soma de saídas de uma categoria específica num período (para orçamentos)
     @Query("""
-        SELECT COALESCE(SUM(amount), 0.0) FROM transactions
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
         WHERE type = 'EXPENSE' AND categoryId = :categoryId AND date BETWEEN :from AND :to
     """)
-    suspend fun getTotalExpenseByCategory(categoryId: String, from: Long, to: Long): Double
+    suspend fun getTotalExpenseByCategory(categoryId: String, from: Long, to: Long): Long
 
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getById(id: String): TransactionEntity?
@@ -214,10 +214,10 @@ interface TransactionDao {
     suspend fun delete(transaction: TransactionEntity)
 
     @Query("""
-        SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE -amount END), 0.0)
+        SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amountCents ELSE -amountCents END), 0)
         FROM transactions WHERE accountId = :accountId
     """)
-    suspend fun getNetForAccount(accountId: String): Double
+    suspend fun getNetForAccount(accountId: String): Long
 
     @Query("SELECT * FROM transactions")
     suspend fun getAllOnce(): List<TransactionEntity>
@@ -286,13 +286,13 @@ interface ScheduledExpenseDao {
 @Dao
 interface BudgetDao {
 
-    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear ORDER BY limitAmount DESC")
+    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear ORDER BY limitCents DESC")
     fun getByMonth(monthYear: String): Flow<List<Budget>>
 
     @Query("SELECT * FROM budgets WHERE monthYear = :monthYear")
     suspend fun getByMonthOnce(monthYear: String): List<Budget>
 
-    @Query("SELECT * FROM budgets ORDER BY monthYear DESC, limitAmount DESC")
+    @Query("SELECT * FROM budgets ORDER BY monthYear DESC, limitCents DESC")
     fun getAllBudgets(): Flow<List<Budget>>
 
     @Query("SELECT * FROM budgets")
@@ -344,15 +344,15 @@ interface SavingsGoalDao {
     @Query("DELETE FROM savings_goals")
     suspend fun deleteAll()
 
-    // Depósito relativo: não depende de um savedAmount possivelmente desatualizado na UI
-    @Query("UPDATE savings_goals SET savedAmount = MIN(savedAmount + :amount, targetAmount) WHERE id = :id")
-    suspend fun addToSaved(id: String, amount: Double)
+    // Depósito relativo: não depende de um savedCents possivelmente desatualizado na UI
+    @Query("UPDATE savings_goals SET savedCents = MIN(savedCents + :cents, targetCents) WHERE id = :id")
+    suspend fun addToSaved(id: String, cents: Long)
 
     // Edição sem tocar no valor guardado (que pode ter mudado por depósito do outro aparelho)
     @Query("""
         UPDATE savings_goals
-        SET name = :name, targetAmount = :targetAmount, colorHex = :colorHex, deadline = :deadline
+        SET name = :name, targetCents = :targetCents, colorHex = :colorHex, deadline = :deadline
         WHERE id = :id
     """)
-    suspend fun updateMeta(id: String, name: String, targetAmount: Double, colorHex: String, deadline: Long?)
+    suspend fun updateMeta(id: String, name: String, targetCents: Long, colorHex: String, deadline: Long?)
 }

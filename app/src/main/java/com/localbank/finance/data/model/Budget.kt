@@ -26,7 +26,7 @@ data class Budget(
 
     val monthYear: String,          // formato "2026-03" — qual mês esse limite se aplica
 
-    val limitAmount: Double,        // valor máximo planejado para o mês
+    val limitCents: Long,           // valor máximo planejado para o mês, em centavos
 
     val createdBy: String? = null,
 

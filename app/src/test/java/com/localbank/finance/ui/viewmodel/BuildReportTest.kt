@@ -4,6 +4,7 @@ import com.localbank.finance.data.database.TransactionDao
 import com.localbank.finance.data.model.Category
 import com.localbank.finance.data.model.Transaction
 import com.localbank.finance.data.model.TransactionType
+import com.localbank.finance.util.toCents
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -26,7 +27,7 @@ class BuildReportTest {
         Calendar.getInstance().apply { clear(); set(year, month, day, 12, 0, 0) }.timeInMillis
 
     private fun tx(amount: Double, type: TransactionType, categoryId: String?, date: Long) = Transaction(
-        accountId = "acc", categoryId = categoryId, amount = amount,
+        accountId = "acc", categoryId = categoryId, amountCents = amount.toCents(),
         type = type, description = "", date = date
     )
 
@@ -45,13 +46,13 @@ class BuildReportTest {
     private fun byCategory(txs: List<Transaction>, range: DateRange) = txs
         .filter { it.type == TransactionType.EXPENSE && it.date in range }
         .groupBy { it.categoryId }
-        .map { (cat, list) -> TransactionDao.CategoryTotal(cat, list.sumOf { it.amount }) }
+        .map { (cat, list) -> TransactionDao.CategoryTotal(cat, list.sumOf { it.amountCents }) }
 
     private fun report(txs: List<Transaction>, cal: Calendar): ReportUiState {
         val ym = SimpleDateFormat("yyyy-MM", Locale.US)
         val monthly = txs
             .groupBy { ym.format(Date(it.date)) to it.type.name }
-            .map { (key, list) -> TransactionDao.MonthlyTotal(key.first, key.second, list.sumOf { it.amount }) }
+            .map { (key, list) -> TransactionDao.MonthlyTotal(key.first, key.second, list.sumOf { it.amountCents }) }
         return buildReport(
             monthlyTotals = monthly,
             monthExpensesByCategory = byCategory(txs, DateRanges.month(cal)),
@@ -68,7 +69,7 @@ class BuildReportTest {
     fun `gastos por categoria do mes selecionado`() {
         val report = report(transactions, selected)
 
-        assertEquals(1600.0, report.totalExpenseThisMonth, 0.001)
+        assertEquals((1600.0).toCents(), report.totalExpenseThisMonthCents)
         assertEquals(listOf("Moradia", "Alimentação", "Sem categoria"), report.categoryExpenses.map { it.categoryName })
         assertEquals(75f, report.categoryExpenses.first().percentage, 0.01f)
     }
@@ -78,10 +79,10 @@ class BuildReportTest {
         val months = report(transactions, selected).monthlyComparison
 
         assertEquals(6, months.size)
-        assertEquals(5000.0, months.last().income, 0.001)
-        assertEquals(1600.0, months.last().expense, 0.001)
-        assertEquals(800.0, months[4].expense, 0.001)    // julho
-        assertEquals(999.0, months[3].expense, 0.001)    // junho
+        assertEquals((5000.0).toCents(), months.last().incomeCents)
+        assertEquals((1600.0).toCents(), months.last().expenseCents)
+        assertEquals((800.0).toCents(), months[4].expenseCents)    // julho
+        assertEquals((999.0).toCents(), months[3].expenseCents)    // junho
     }
 
     @Test
@@ -91,9 +92,9 @@ class BuildReportTest {
         assertNotNull(semester)
         semester!!
         assertEquals("2º Semestre 2026", semester.label)
-        assertEquals(9000.0, semester.totalIncome, 0.001)
-        assertEquals(2400.0, semester.totalExpense, 0.001)
-        assertEquals(6600.0, semester.balance, 0.001)
+        assertEquals((9000.0).toCents(), semester.totalIncomeCents)
+        assertEquals((2400.0).toCents(), semester.totalExpenseCents)
+        assertEquals((6600.0).toCents(), semester.balanceCents)
         assertEquals("Moradia", semester.topCategory)    // 1200 vs 1100 de alimentação no semestre
         assertEquals(73.33f, semester.savingsRate, 0.01f)
     }
@@ -103,7 +104,7 @@ class BuildReportTest {
         val report = report(emptyList(), selected)
 
         assertNull(report.semesterReport)
-        assertEquals(0.0, report.totalExpenseThisMonth, 0.0)
+        assertEquals((0.0).toCents(), report.totalExpenseThisMonthCents)
         assertEquals(6, report.monthlyComparison.size)
     }
 }

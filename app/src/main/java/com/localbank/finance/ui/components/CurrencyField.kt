@@ -20,7 +20,7 @@ import java.util.Locale
  * - [onRawValueChange]: recebe somente dígitos
  *
  * Para converter na hora de salvar:
- *   val amount = (rawValue.toLongOrNull() ?: 0) / 100.0
+ *   val cents = rawValue.toLongOrNull() ?: 0L
  */
 @Composable
 fun CurrencyField(

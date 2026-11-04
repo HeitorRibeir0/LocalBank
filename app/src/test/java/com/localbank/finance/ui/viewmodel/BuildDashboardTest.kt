@@ -5,6 +5,7 @@ import com.localbank.finance.data.model.AccountType
 import com.localbank.finance.data.model.ScheduledExpense
 import com.localbank.finance.data.model.Transaction
 import com.localbank.finance.data.model.TransactionType
+import com.localbank.finance.util.toCents
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -19,12 +20,12 @@ class BuildDashboardTest {
     private val now = Calendar.getInstance().apply { timeInMillis = at(Calendar.OCTOBER, 17, 10) }
 
     private val accounts = listOf(
-        Account(id = "a", name = "Carteira", type = AccountType.WALLET, balance = 2000.0),
-        Account(id = "b", name = "Banco", type = AccountType.CHECKING, balance = 1500.0)
+        Account(id = "a", name = "Carteira", type = AccountType.WALLET, balanceCents = (2000.0).toCents()),
+        Account(id = "b", name = "Banco", type = AccountType.CHECKING, balanceCents = (1500.0).toCents())
     )
 
     private fun bill(id: String, amount: Double, due: Long, paid: Boolean = false) = ScheduledExpense(
-        id = id, accountId = "a", categoryId = null, amount = amount,
+        id = id, accountId = "a", categoryId = null, amountCents = amount.toCents(),
         description = id, dueDate = due, isPaid = paid
     )
 
@@ -41,9 +42,9 @@ class BuildDashboardTest {
         val state = buildDashboard(emptyList(), scheduled, emptyList(), accounts, emptyList(), now)
 
         assertEquals(15, state.daysLeft)
-        assertEquals(3500.0, state.accountsBalance, 0.001)
-        assertEquals(1619.90, state.pendingThisMonth, 0.001)          // 1450 + 119,90 + 50 atrasada
-        assertEquals(3500.0 - 1619.90, state.freeAfterBills, 0.001)
+        assertEquals((3500.0).toCents(), state.accountsBalanceCents)
+        assertEquals((1619.90).toCents(), state.pendingThisMonthCents)          // 1450 + 119,90 + 50 atrasada
+        assertEquals((3500.0 - 1619.90).toCents(), state.freeAfterBillsCents)
     }
 
     @Test
@@ -67,27 +68,27 @@ class BuildDashboardTest {
 
     @Test
     fun `saldo menor que as contas deixa a sobra negativa`() {
-        val poor = listOf(Account(id = "a", name = "Carteira", type = AccountType.WALLET, balance = 100.0))
+        val poor = listOf(Account(id = "a", name = "Carteira", type = AccountType.WALLET, balanceCents = (100.0).toCents()))
         val state = buildDashboard(emptyList(), scheduled, emptyList(), poor, emptyList(), now)
 
-        assertEquals(100.0, state.accountsBalance, 0.001)
-        assertTrue(state.freeAfterBills < 0)
+        assertEquals((100.0).toCents(), state.accountsBalanceCents)
+        assertTrue(state.freeAfterBillsCents < 0)
     }
 
     @Test
     fun `entradas e saidas consideram so o mes atual`() {
         val txs = listOf(
-            Transaction(accountId = "a", categoryId = null, amount = 5000.0, type = TransactionType.INCOME,
+            Transaction(accountId = "a", categoryId = null, amountCents = (5000.0).toCents(), type = TransactionType.INCOME,
                 description = "", date = at(Calendar.OCTOBER, 5)),
-            Transaction(accountId = "a", categoryId = null, amount = 300.0, type = TransactionType.EXPENSE,
+            Transaction(accountId = "a", categoryId = null, amountCents = (300.0).toCents(), type = TransactionType.EXPENSE,
                 description = "", date = at(Calendar.OCTOBER, 10)),
-            Transaction(accountId = "a", categoryId = null, amount = 700.0, type = TransactionType.EXPENSE,
+            Transaction(accountId = "a", categoryId = null, amountCents = (700.0).toCents(), type = TransactionType.EXPENSE,
                 description = "", date = at(Calendar.SEPTEMBER, 28))
         )
         val state = buildDashboard(txs, emptyList(), emptyList(), accounts, emptyList(), now)
 
-        assertEquals(5000.0, state.totalIncome, 0.001)
-        assertEquals(300.0, state.totalExpense, 0.001)
+        assertEquals((5000.0).toCents(), state.totalIncomeCents)
+        assertEquals((300.0).toCents(), state.totalExpenseCents)
         assertEquals("Sem categoria", state.categoryExpenses.single().categoryName)
     }
 }

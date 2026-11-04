@@ -37,7 +37,7 @@ data class Transaction(
 
     val categoryId: String?,        // categoria (nullable)
 
-    val amount: Double,             // sempre positivo — o tipo define a direção
+    val amountCents: Long,          // centavos, sempre positivo — o tipo define a direção
 
     val type: TransactionType,      // INCOME ou EXPENSE
 

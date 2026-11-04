@@ -19,7 +19,8 @@ import com.localbank.finance.data.model.SavingsGoal
 import com.localbank.finance.data.model.ScheduledExpense
 import com.localbank.finance.data.model.TransactionType
 import com.localbank.finance.data.model.Transaction as AppTransaction
-import com.localbank.finance.util.roundCents
+import com.localbank.finance.util.toCents
+import com.localbank.finance.util.toReais
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -115,11 +116,12 @@ class FirestoreSyncManager(private val database: AppDatabase) {
             .document(goal.id).set(goalToMap(goal))
     }
 
-    // merge só com os campos editáveis: não sobrescreve savedAmount
+    // merge só com os campos editáveis: não sobrescreve o valor guardado
     fun pushSavingsGoalMeta(householdId: String, goal: SavingsGoal) {
         householdRef(householdId).collection(GOALS).document(goal.id).set(
             mapOf(
-                "name" to goal.name, "targetAmount" to goal.targetAmount,
+                "name" to goal.name,
+                "targetAmount" to goal.targetCents.toReais(), "targetCents" to goal.targetCents,
                 "colorHex" to goal.colorHex, "deadline" to goal.deadline
             ),
             SetOptions.merge()
@@ -127,9 +129,12 @@ class FirestoreSyncManager(private val database: AppDatabase) {
     }
 
     // Incremento atômico no servidor: depósitos simultâneos nos dois aparelhos somam
-    fun incrementGoalSaved(householdId: String, goalId: String, amount: Double) {
+    fun incrementGoalSaved(householdId: String, goalId: String, cents: Long) {
         householdRef(householdId).collection(GOALS).document(goalId).set(
-            mapOf("savedAmount" to FieldValue.increment(amount)),
+            mapOf(
+                "savedAmount" to FieldValue.increment(cents.toReais()),
+                "savedCents" to FieldValue.increment(cents)
+            ),
             SetOptions.merge()
         )
     }
@@ -166,7 +171,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
         val ref = householdRef(householdId).collection(ACCOUNTS)
         accountIds.chunked(MAX_BATCH_OPS).forEach { chunk ->
             val batch = db.batch()
-            chunk.forEach { batch.update(ref.document(it), "balance", 0.0) }
+            chunk.forEach { batch.update(ref.document(it), mapOf("balance" to 0.0, "balanceCents" to 0L)) }
             batch.commit().addOnFailureListener { Log.w(TAG, "Falha ao zerar saldos: ${it.message}") }
         }
     }
@@ -340,8 +345,8 @@ class FirestoreSyncManager(private val database: AppDatabase) {
             when (batch.collection) {
                 ACCOUNTS -> {
                     batch.upserts.mapNotNull(::mapToAccount).forEach { a ->
-                        accountDao.insertIfNotExists(a.id, a.name, a.type.name, 0.0, a.currency, a.createdAt)
-                        accountDao.updateMetaOnly(a.id, a.name, a.type.name, a.currency)
+                        accountDao.insertIfNotExists(a.id, a.name, a.type.name, a.currency, a.archived, a.createdAt)
+                        accountDao.updateMetaOnly(a.id, a.name, a.type.name, a.currency, a.archived)
                     }
                     batch.removals.mapNotNull(::mapToAccount).forEach { accountDao.delete(it) }
                     accountDao.recalculateAllBalances()
@@ -436,7 +441,8 @@ class FirestoreSyncManager(private val database: AppDatabase) {
 
     private fun accountToMap(a: Account): HashMap<String, Any> = hashMapOf(
         "id" to a.id, "name" to a.name, "type" to a.type.name,
-        "balance" to a.balance, "currency" to a.currency, "createdAt" to a.createdAt
+        "balance" to a.balanceCents.toReais(), "balanceCents" to a.balanceCents,
+        "currency" to a.currency, "archived" to a.archived, "createdAt" to a.createdAt
     )
 
     private fun categoryToMap(c: Category): HashMap<String, String> = hashMapOf(
@@ -446,25 +452,26 @@ class FirestoreSyncManager(private val database: AppDatabase) {
 
     private fun transactionToMap(t: AppTransaction): HashMap<String, Any?> = hashMapOf(
         "id" to t.id, "accountId" to t.accountId, "categoryId" to t.categoryId,
-        "amount" to t.amount, "type" to t.type.name, "description" to t.description,
+        "amount" to t.amountCents.toReais(), "amountCents" to t.amountCents, "type" to t.type.name, "description" to t.description,
         "date" to t.date, "scheduledId" to t.scheduledId, "createdBy" to t.createdBy
     )
 
     private fun scheduledToMap(s: ScheduledExpense): HashMap<String, Any?> = hashMapOf(
         "id" to s.id, "accountId" to s.accountId, "categoryId" to s.categoryId,
-        "amount" to s.amount, "description" to s.description, "dueDate" to s.dueDate,
+        "amount" to s.amountCents.toReais(), "amountCents" to s.amountCents, "description" to s.description, "dueDate" to s.dueDate,
         "isRecurring" to s.isRecurring, "recurrenceRule" to s.recurrenceRule?.name,
         "isPaid" to s.isPaid, "notifiedStage" to s.notifiedStage, "createdBy" to s.createdBy
     )
 
     private fun budgetToMap(b: Budget): HashMap<String, Any?> = hashMapOf(
         "id" to b.id, "categoryId" to b.categoryId, "monthYear" to b.monthYear,
-        "limitAmount" to b.limitAmount, "createdBy" to b.createdBy, "createdAt" to b.createdAt
+        "limitAmount" to b.limitCents.toReais(), "limitCents" to b.limitCents, "createdBy" to b.createdBy, "createdAt" to b.createdAt
     )
 
     private fun goalToMap(g: SavingsGoal): HashMap<String, Any?> = hashMapOf(
-        "id" to g.id, "name" to g.name, "targetAmount" to g.targetAmount,
-        "savedAmount" to g.savedAmount, "colorHex" to g.colorHex, "deadline" to g.deadline,
+        "id" to g.id, "name" to g.name,
+        "targetAmount" to g.targetCents.toReais(), "targetCents" to g.targetCents,
+        "savedAmount" to g.savedCents.toReais(), "savedCents" to g.savedCents, "colorHex" to g.colorHex, "deadline" to g.deadline,
         "createdAt" to g.createdAt, "createdBy" to g.createdBy
     )
 
@@ -472,14 +479,20 @@ class FirestoreSyncManager(private val database: AppDatabase) {
     // Map → Entity
     // ─────────────────────────────────────────────
 
+    // Lê primeiro o campo em reais: aparelhos com a versão antiga só atualizam ele
+    // (set() sem merge apaga o campo em centavos, e o incremento da meta não o toca).
+    private fun cents(doc: DocumentSnapshot, legacy: String, field: String): Long? =
+        doc.getDouble(legacy)?.toCents() ?: doc.getLong(field)
+
     private fun mapToAccount(doc: DocumentSnapshot): Account? {
         return try {
             Account(
                 id = doc.getString("id") ?: doc.id,
                 name = doc.getString("name") ?: return null,
                 type = AccountType.valueOf(doc.getString("type") ?: return null),
-                balance = (doc.getDouble("balance") ?: 0.0).roundCents(),
+                balanceCents = cents(doc, "balance", "balanceCents") ?: 0,
                 currency = doc.getString("currency") ?: "BRL",
+                archived = doc.getBoolean("archived") ?: false,
                 createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
             )
         } catch (_: Exception) { null }
@@ -503,7 +516,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
                 id = doc.getString("id") ?: doc.id,
                 accountId = doc.getString("accountId") ?: return null,
                 categoryId = doc.getString("categoryId"),
-                amount = doc.getDouble("amount")?.roundCents() ?: return null,
+                amountCents = cents(doc, "amount", "amountCents") ?: return null,
                 type = TransactionType.valueOf(doc.getString("type") ?: return null),
                 description = doc.getString("description") ?: "",
                 date = doc.getLong("date") ?: return null,
@@ -519,7 +532,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
                 id = doc.getString("id") ?: doc.id,
                 accountId = doc.getString("accountId") ?: return null,
                 categoryId = doc.getString("categoryId"),
-                amount = doc.getDouble("amount")?.roundCents() ?: return null,
+                amountCents = cents(doc, "amount", "amountCents") ?: return null,
                 description = doc.getString("description") ?: "",
                 dueDate = doc.getLong("dueDate") ?: return null,
                 isRecurring = doc.getBoolean("isRecurring") ?: false,
@@ -535,13 +548,13 @@ class FirestoreSyncManager(private val database: AppDatabase) {
 
     private fun mapToGoal(doc: DocumentSnapshot): SavingsGoal? {
         return try {
-            val target = doc.getDouble("targetAmount")?.roundCents() ?: return null
+            val target = cents(doc, "targetAmount", "targetCents") ?: return null
             SavingsGoal(
                 id = doc.getString("id") ?: doc.id,
                 name = doc.getString("name") ?: return null,
-                targetAmount = target,
+                targetCents = target,
                 // Incrementos simultâneos podem passar do alvo no servidor
-                savedAmount = (doc.getDouble("savedAmount") ?: 0.0).roundCents().coerceIn(0.0, target),
+                savedCents = (cents(doc, "savedAmount", "savedCents") ?: 0).coerceIn(0, target),
                 colorHex = doc.getString("colorHex") ?: "#4CAF50",
                 deadline = doc.getLong("deadline"),
                 createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
@@ -556,7 +569,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
                 id = doc.getString("id") ?: doc.id,
                 categoryId = doc.getString("categoryId") ?: return null,
                 monthYear = doc.getString("monthYear") ?: return null,
-                limitAmount = doc.getDouble("limitAmount")?.roundCents() ?: return null,
+                limitCents = cents(doc, "limitAmount", "limitCents") ?: return null,
                 createdBy = doc.getString("createdBy"),
                 createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
             )

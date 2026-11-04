@@ -53,8 +53,8 @@ fun AddEntrySheet(
     accounts: List<Account>,
     categories: List<Category>,
     onDismiss: () -> Unit,
-    onAddTransaction: (accountId: String, categoryId: String?, desc: String, amount: Double, type: TransactionType, date: Long) -> Unit,
-    onAddScheduled: (accountId: String, categoryId: String?, desc: String, amount: Double, dueDate: Long, isRecurring: Boolean, recurrenceRule: RecurrenceRule?) -> Unit,
+    onAddTransaction: (accountId: String, categoryId: String?, desc: String, amountCents: Long, type: TransactionType, date: Long) -> Unit,
+    onAddScheduled: (accountId: String, categoryId: String?, desc: String, amountCents: Long, dueDate: Long, isRecurring: Boolean, recurrenceRule: RecurrenceRule?) -> Unit,
     onAddCategory: (name: String, colorHex: String, type: TransactionType) -> Unit
 ) {
     val c = LocalAppColors.current
@@ -88,7 +88,7 @@ fun AddEntrySheet(
 
     fun save() {
         val account = selectedAccount
-        val amount = (amountRaw.toLongOrNull() ?: 0) / 100.0
+        val amount = amountRaw.toLongOrNull() ?: 0L
         error = when {
             account == null -> "Escolha uma conta. Se não houver nenhuma, crie em Perfil › Contas."
             amount <= 0 -> "Informe o valor."

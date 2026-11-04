@@ -14,7 +14,7 @@ data class BudgetWithProgress(
     val budget: Budget,
     val categoryName: String,
     val categoryColorHex: String,
-    val spent: Double,
+    val spentCents: Long,
     val percentage: Float   // 0.0 a 1.0+  (pode passar de 1.0 se estourou)
 )
 
@@ -47,14 +47,14 @@ class BudgetViewModel(private val repository: FinanceRepository) : ViewModel() {
 
             val budgetsWithProgress = budgets.map { budget ->
                 val category = categoriesById[budget.categoryId]
-                val spent = spentByCategory[budget.categoryId] ?: 0.0
+                val spent = spentByCategory[budget.categoryId] ?: 0L
 
                 BudgetWithProgress(
                     budget           = budget,
                     categoryName     = category?.displayName ?: "Sem categoria",
                     categoryColorHex = category?.colorHex ?: "#9E9E9E",
-                    spent            = spent,
-                    percentage       = if (budget.limitAmount > 0) (spent / budget.limitAmount).toFloat() else 0f
+                    spentCents       = spent,
+                    percentage       = if (budget.limitCents > 0) spent.toFloat() / budget.limitCents else 0f
                 )
             }.sortedByDescending { it.percentage }
 
@@ -73,18 +73,18 @@ class BudgetViewModel(private val repository: FinanceRepository) : ViewModel() {
      * Define o limite mensal da categoria. Se a categoria já tem limite neste mês,
      * atualiza o existente em vez de criar um segundo (evita duplicidade).
      */
-    fun addBudget(categoryId: String, limitAmount: Double) {
+    fun addBudget(categoryId: String, limitCents: Long) {
         viewModelScope.launch {
             val monthKey = DateRanges.monthKey()
             val existing = repository.getBudgetForCategory(categoryId, monthKey)
             if (existing != null) {
-                repository.updateBudget(existing.copy(limitAmount = limitAmount))
+                repository.updateBudget(existing.copy(limitCents = limitCents))
             } else {
                 repository.insertBudget(
                     Budget(
                         categoryId  = categoryId,
                         monthYear   = monthKey,
-                        limitAmount = limitAmount
+                        limitCents  = limitCents
                     )
                 )
             }

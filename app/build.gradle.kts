@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.ksp)
 
     // Firebase
-    id("com.google.gms.google-services")
+    alias(libs.plugins.google.services)
 }
 
 fun gitVersionCode(): Int = try {
@@ -65,6 +65,14 @@ android {
         compose = true
         buildConfig = true
     }
+    // Robolectric e MigrationTestHelper leem os schemas exportados como assets
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+    sourceSets {
+        // só no debug: o APK de release não leva os schemas
+        getByName("debug").assets.srcDir("$projectDir/schemas")
+    }
 }
 
 ksp {
@@ -72,41 +80,42 @@ ksp {
 }
 
 dependencies {
-    val room_version = "2.7.0"
-    implementation("androidx.room:room-runtime:$room_version")
-    implementation("androidx.room:room-ktx:$room_version")
-    ksp("androidx.room:room-compiler:$room_version")
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.work.runtime.ktx)
 
-    val work_version = "2.9.0"
-    implementation("androidx.work:work-runtime-ktx:$work_version")
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.config)
 
-    // Firebase BoM — gerencia versões automaticamente
-    implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-config")
-
-    // Google Sign-In (método clássico — funciona em todos os dispositivos)
+    // Google Sign-In (método clássico)
     implementation("com.google.android.gms:play-services-auth:21.3.0")
 
-    // Segurança — banco criptografado + preferências criptografadas
-    implementation("net.zetetic:sqlcipher-android:4.5.6")
-    implementation("androidx.sqlite:sqlite:2.4.0")
-    implementation("androidx.sqlite:sqlite-ktx:2.4.0")
-    implementation("androidx.security:security-crypto:1.1.0-alpha07")
+    // Banco criptografado
+    implementation(libs.sqlcipher.android)
+    implementation(libs.androidx.sqlite)
+    implementation(libs.androidx.sqlite.ktx)
+    implementation(libs.androidx.security.crypto)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation("androidx.compose.material:material-icons-extended")
-    
+    implementation(libs.androidx.compose.material.icons.extended)
+
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.androidx.sqlite.framework)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -114,3 +123,4 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
+

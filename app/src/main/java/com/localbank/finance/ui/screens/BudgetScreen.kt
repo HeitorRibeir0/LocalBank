@@ -1,5 +1,6 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.ui.util.cents
 import com.localbank.finance.ui.util.rememberCurrencyFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -110,7 +111,7 @@ fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(item.categoryName, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = OnDarkText)
-                        Text("${currency.format(item.spent)} / ${currency.format(item.budget.limitAmount)}",
+                        Text("${currency.cents(item.spentCents)} / ${currency.cents(item.budget.limitCents)}",
                             fontSize = 13.sp, color = OnDarkTextSecondary)
                     }
                     Text("${(item.percentage * 100).toInt()}%", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = color)
@@ -128,7 +129,7 @@ fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () ->
                 )
                 if (item.percentage >= 1.0f) {
                     Spacer(Modifier.height(6.dp))
-                    Text("⚠ Estourado em ${currency.format(item.spent - item.budget.limitAmount)}",
+                    Text("⚠ Estourado em ${currency.cents(item.spentCents - item.budget.limitCents)}",
                         fontSize = 12.sp, color = ExpenseRed, fontWeight = FontWeight.Medium)
                 }
             }
@@ -157,7 +158,7 @@ fun BudgetCard(item: BudgetWithProgress, currency: NumberFormat, onDelete: () ->
 @Composable
 fun AddBudgetDialog(
     categories: List<Category>, onDismiss: () -> Unit,
-    onConfirm: (categoryId: String, limitAmount: Double) -> Unit
+    onConfirm: (categoryId: String, limitCents: Long) -> Unit
 ) {
     val appColors = LocalAppColors.current
     var selected by remember { mutableStateOf<Category?>(null) }
@@ -191,7 +192,7 @@ fun AddBudgetDialog(
         confirmButton = {
             TextButton(onClick = {
                 val cat = selected
-                val amount = (amountRaw.toLongOrNull() ?: 0) / 100.0
+                val amount = amountRaw.toLongOrNull() ?: 0L
                 if (cat != null && amount > 0) onConfirm(cat.id, amount)
                 else showError = true
             }) { Text("Criar", color = appColors.primary, fontWeight = FontWeight.SemiBold) }

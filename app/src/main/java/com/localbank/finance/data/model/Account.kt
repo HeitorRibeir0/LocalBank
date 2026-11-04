@@ -13,9 +13,11 @@ data class Account(
 
     val type: AccountType,      // CHECKING, SAVINGS, WALLET
 
-    val balance: Double,        // saldo atual (atualizado a cada transação)
+    val balanceCents: Long,     // saldo atual em centavos (recalculado a cada transação)
 
     val currency: String = "BRL",
+
+    val archived: Boolean = false, // some das listas e seletores, mas mantém o histórico
 
     val createdAt: Long = System.currentTimeMillis()
 )

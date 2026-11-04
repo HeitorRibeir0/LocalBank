@@ -9,8 +9,8 @@ data class SavingsGoal(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val targetAmount: Double,
-    val savedAmount: Double = 0.0,
+    val targetCents: Long,
+    val savedCents: Long = 0,
     val colorHex: String = "#4CAF50",
     val deadline: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),

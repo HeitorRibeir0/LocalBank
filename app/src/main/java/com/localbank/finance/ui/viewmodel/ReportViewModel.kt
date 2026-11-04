@@ -7,7 +7,6 @@ import com.localbank.finance.data.model.Category
 import com.localbank.finance.data.model.displayName
 import com.localbank.finance.data.repository.FinanceRepository
 import com.localbank.finance.util.DateRanges
-import com.localbank.finance.util.roundCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import java.text.SimpleDateFormat
@@ -16,21 +15,21 @@ import java.util.*
 data class CategoryExpense(
     val categoryName: String,
     val colorHex: String,
-    val totalAmount: Double,
+    val totalCents: Long,
     val percentage: Float       // 0–100
 )
 
 data class MonthlyComparison(
     val monthLabel: String,     // "Mar/26"
-    val income: Double,
-    val expense: Double
+    val incomeCents: Long,
+    val expenseCents: Long
 )
 
 data class SemesterReport(
     val label: String,                          // "1º Semestre 2026"
-    val totalIncome: Double,
-    val totalExpense: Double,
-    val balance: Double,
+    val totalIncomeCents: Long,
+    val totalExpenseCents: Long,
+    val balanceCents: Long,
     val bestMonth: String,                      // mês com menor gasto
     val worstMonth: String,                     // mês com maior gasto
     val topCategory: String,                    // categoria mais gasta
@@ -41,7 +40,7 @@ data class SemesterReport(
 data class ReportUiState(
     val categoryExpenses: List<CategoryExpense> = emptyList(),
     val monthlyComparison: List<MonthlyComparison> = emptyList(),
-    val totalExpenseThisMonth: Double = 0.0,
+    val totalExpenseThisMonthCents: Long = 0,
     val semesterReport: SemesterReport? = null
 )
 
@@ -101,8 +100,8 @@ internal fun buildReport(
     val categoriesById = categories.associateBy { it.id }
 
     // ── Mapa de totais por mês (de 6 meses atrás até agora) ──
-    val incomeByMonthYm = HashMap<String, Double>()
-    val expenseByMonthYm = HashMap<String, Double>()
+    val incomeByMonthYm = HashMap<String, Long>()
+    val expenseByMonthYm = HashMap<String, Long>()
     monthlyTotals.forEach { (monthYm, type, total) ->
         if (type == "INCOME") {
             incomeByMonthYm[monthYm] = total
@@ -112,18 +111,18 @@ internal fun buildReport(
     }
 
     // ── Gastos por categoria no mês selecionado ──
-    val totalExpense = monthExpensesByCategory.sumOf { it.total }.roundCents()
+    val totalExpense = monthExpensesByCategory.sumOf { it.total }
     val categoryExpenses = monthExpensesByCategory
         .map { (catId, total) ->
             val category = categoriesById[catId]
             CategoryExpense(
                 categoryName = category?.displayName ?: "Sem categoria",
                 colorHex     = category?.colorHex ?: "#9E9E9E",
-                totalAmount  = total,
-                percentage   = if (totalExpense > 0) (total / totalExpense * 100).toFloat() else 0f
+                totalCents   = total,
+                percentage   = if (totalExpense > 0) total * 100f / totalExpense else 0f
             )
         }
-        .sortedByDescending { it.totalAmount }
+        .sortedByDescending { it.totalCents }
 
     // ── Comparativo: 6 meses até o mês selecionado ──
     val sdf = SimpleDateFormat("MMM/yy", locale)
@@ -132,8 +131,8 @@ internal fun buildReport(
         val monthYm = SimpleDateFormat("yyyy-MM", Locale.US).format(c.time)
         MonthlyComparison(
             sdf.format(c.time).replaceFirstChar { it.uppercase() },
-            incomeByMonthYm[monthYm] ?: 0.0,
-            expenseByMonthYm[monthYm] ?: 0.0
+            incomeByMonthYm[monthYm] ?: 0,
+            expenseByMonthYm[monthYm] ?: 0
         )
     }
 
@@ -152,13 +151,13 @@ internal fun buildReport(
         val monthYm = SimpleDateFormat("yyyy-MM", Locale.US).format(c.time)
         Triple(
             monthLabelSdf.format(c.time).replaceFirstChar { it.uppercase() },
-            incomeByMonthYm[monthYm] ?: 0.0,
-            expenseByMonthYm[monthYm] ?: 0.0
+            incomeByMonthYm[monthYm] ?: 0L,
+            expenseByMonthYm[monthYm] ?: 0L
         )
     }
 
-    val semesterIncome = semesterMonths.sumOf { it.second }.roundCents()
-    val semesterExpense = semesterMonths.sumOf { it.third }.roundCents()
+    val semesterIncome = semesterMonths.sumOf { it.second }
+    val semesterExpense = semesterMonths.sumOf { it.third }
 
     val activeMonths = semesterMonths.filter { it.third > 0 }
     val bestMonth = activeMonths.minByOrNull { it.third }?.first ?: "-"
@@ -167,14 +166,14 @@ internal fun buildReport(
     val topCategoryId = semesterExpensesByCategory.maxByOrNull { it.total }?.categoryId
     val topCategory = topCategoryId?.let { categoriesById[it] }
     val savingsRate = if (semesterIncome > 0)
-        ((semesterIncome - semesterExpense) / semesterIncome * 100).toFloat().coerceIn(0f, 100f)
+        ((semesterIncome - semesterExpense) * 100f / semesterIncome).coerceIn(0f, 100f)
     else 0f
 
     val semesterReport = if (semesterExpense > 0 || semesterIncome > 0) SemesterReport(
         label            = semesterLabel,
-        totalIncome      = semesterIncome,
-        totalExpense     = semesterExpense,
-        balance          = semesterIncome - semesterExpense,
+        totalIncomeCents  = semesterIncome,
+        totalExpenseCents = semesterExpense,
+        balanceCents      = semesterIncome - semesterExpense,
         bestMonth        = bestMonth,
         worstMonth       = worstMonth,
         topCategory      = topCategory?.displayName ?: "Sem dados",
@@ -185,7 +184,7 @@ internal fun buildReport(
     return ReportUiState(
         categoryExpenses      = categoryExpenses,
         monthlyComparison     = monthlyComparison,
-        totalExpenseThisMonth = totalExpense,
+        totalExpenseThisMonthCents = totalExpense,
         semesterReport        = semesterReport
     )
 }
