@@ -103,6 +103,7 @@ class FinanceRepository(
         transactionDao.getTotalExpenseByCategory(categoryId, from, to)
 
     suspend fun insertTransaction(transaction: Transaction) {
+        require(transaction.amount > 0) { "Valor deve ser positivo" }
         transactionDao.insert(transaction)
         syncPush { it.pushTransaction(householdId!!, transaction) }
         refreshBalances(transaction.accountId)
