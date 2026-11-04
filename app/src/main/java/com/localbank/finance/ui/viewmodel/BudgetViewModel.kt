@@ -35,17 +35,14 @@ class BudgetViewModel(private val repository: FinanceRepository) : ViewModel() {
     }.distinctUntilChanged()
 
     val uiState: StateFlow<BudgetUiState> = monthKeyFlow.flatMapLatest { monthKey ->
+        val month = DateRanges.month()
         combine(
             repository.getBudgetsByMonth(monthKey),
             repository.getAllCategories(),
-            repository.getAllTransactions()
-        ) { budgets, categories, transactions ->
+            repository.getExpenseByCategory(month.from, month.to)
+        ) { budgets, categories, expenseByCategory ->
 
-            val month = DateRanges.month()
-            val spentByCategory = transactions
-                .filter { it.type == TransactionType.EXPENSE && it.date in month }
-                .groupBy { it.categoryId }
-                .mapValues { (_, txns) -> txns.sumOf { it.amount } }
+            val spentByCategory = expenseByCategory.associate { it.categoryId to (it.total ?: 0.0) }
             val categoriesById = categories.associateBy { it.id }
 
             val budgetsWithProgress = budgets.map { budget ->

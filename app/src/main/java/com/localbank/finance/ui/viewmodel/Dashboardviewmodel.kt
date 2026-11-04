@@ -10,6 +10,7 @@ import com.localbank.finance.data.model.TransactionType
 import com.localbank.finance.data.model.displayName
 import com.localbank.finance.data.repository.FinanceRepository
 import com.localbank.finance.util.DateRanges
+import com.localbank.finance.util.DateRange
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import java.util.Calendar
@@ -48,8 +49,30 @@ data class DashboardUiState(
 
 class DashboardViewModel(private val repository: FinanceRepository) : ViewModel() {
 
+    // Fluxo que emite o período do mês atual e reage à virada de mês
+    private val monthPeriod: Flow<DateRange> = flow {
+        while (true) {
+            val now = Calendar.getInstance()
+            val (from, to) = DateRanges.month(now)
+            emit(DateRange(from, to))
+
+            // Espera até a próxima meia-noite
+            val nextMidnight = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, 1)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val delayMs = nextMidnight.timeInMillis - System.currentTimeMillis()
+            if (delayMs > 0) kotlinx.coroutines.delay(delayMs)
+        }
+    }.shareIn(viewModelScope, SharingStarted.Lazily, replay = 1)
+
     val uiState: StateFlow<DashboardUiState> = combine(
-        repository.getAllTransactions(),
+        monthPeriod.flatMapLatest { (from, to) ->
+            repository.getTransactionsByPeriod(from, to)
+        },
         repository.getAllScheduled(),
         repository.getAllCategories(),
         repository.getAllAccounts()

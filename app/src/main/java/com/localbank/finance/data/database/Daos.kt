@@ -147,6 +147,23 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE date BETWEEN :from AND :to ORDER BY date DESC")
     fun getByPeriod(from: Long, to: Long): Flow<List<TransactionEntity>>
 
+    // últimas N transações (recentes)
+    @Query("SELECT * FROM transactions ORDER BY date DESC LIMIT :limit")
+    fun getRecent(limit: Int): Flow<List<TransactionEntity>>
+
+    // despesa total por categoria num período (para orçamentos)
+    data class CategoryTotal(
+        val categoryId: String?,
+        val total: Double
+    )
+
+    @Query("""
+        SELECT categoryId, SUM(amount) AS total FROM transactions
+        WHERE type = 'EXPENSE' AND date BETWEEN :from AND :to
+        GROUP BY categoryId
+    """)
+    fun expenseByCategory(from: Long, to: Long): Flow<List<CategoryTotal>>
+
     // soma de entradas num período
     @Query("""
         SELECT COALESCE(SUM(amount), 0.0) FROM transactions

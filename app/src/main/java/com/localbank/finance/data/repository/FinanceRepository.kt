@@ -93,6 +93,12 @@ class FinanceRepository(
     fun getTransactionsByPeriod(from: Long, to: Long): Flow<List<Transaction>> =
         transactionDao.getByPeriod(from, to)
 
+    fun getRecentTransactions(limit: Int): Flow<List<Transaction>> =
+        transactionDao.getRecent(limit)
+
+    fun getExpenseByCategory(from: Long, to: Long): Flow<List<TransactionDao.CategoryTotal>> =
+        transactionDao.expenseByCategory(from, to)
+
     suspend fun getTotalIncome(from: Long, to: Long): Double =
         transactionDao.getTotalIncome(from, to)
 
