@@ -13,36 +13,6 @@ Prioridade: **[Alta]** bug que o usuário vê ou dado errado · **[Média]** des
 
 ## Parte 1 — camada de dados, sincronização e tela inicial
 
-### 1.1 [Alta] Conta atrasada aparece como "Vence hoje"
-**Onde:** `ui/screens/ExpensesScreen.kt:303` e `worker/NotificationWorker.kt:44`.
-
-**Problema:** `((dueDate - agora) / (1000*60*60*24)).toInt()` faz divisão inteira, que corta a fração em direção
-ao zero. Uma conta que venceu ontem às 23h dá `-0,4 → 0` e aparece como "Vence hoje"; uma que venceu há 2 dias
-às 0h, com o relógio às 10h, dá `-1`. A tela inicial (`DashboardScreen.kt`) já calcula certo: compara o início
-do dia e usa `Math.floorDiv`.
-
-**Passo a passo:**
-1. Em `util/DateRanges.kt`, crie uma função única:
-   ```kotlin
-   fun startOfDay(ms: Long): Long = Calendar.getInstance().apply {
-       timeInMillis = ms
-       set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
-       set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-   }.timeInMillis
-
-   /** Dias de calendário entre hoje e [ms]: 0 = hoje, 1 = amanhã, -1 = ontem. */
-   fun daysUntil(ms: Long, now: Long = System.currentTimeMillis()): Int =
-       Math.floorDiv(startOfDay(ms) - startOfDay(now), DAY_MS).toInt()
-   ```
-   Use `Math.round` sobre a diferença em vez de `floorDiv` se quiser tolerar o dia de 23h/25h de horário
-   de verão (o Brasil não tem hoje, mas outros fusos têm).
-2. Troque o cálculo em `ExpensesScreen.kt:303` por `DateRanges.daysUntil(expense.dueDate)`.
-3. Troque em `NotificationWorker.kt:44` por `DateRanges.daysUntil(expense.dueDate, now)`.
-4. Em `DashboardScreen.kt`, apague `startOfDay`, `DAY_MS` locais e use as funções de `DateRanges` (vale também
-   para `relativeDay`).
-5. Em `DateRangesTest.kt`, teste: vencida ontem às 23h → `-1`; hoje às 0h com relógio às 22h → `0`;
-   amanhã às 0h com relógio às 23h59 → `1`.
-
 ### 1.2 [Alta] Pagamento pode divergir entre o celular e o Firestore
 **Onde:** `data/repository/FinanceRepository.kt`, `payScheduledExpense` / `payScheduledExpenseInternal`.
 
@@ -152,35 +122,6 @@ Também troque a partição de urgentes em `buildDashboard` (`(dueDate - nowMs) 
 `DateRanges.daysUntil(it.dueDate, nowMs) <= 3`, para usar a mesma régua de dias da tela.
 
 ## Parte 2 — resto do projeto (telas, auth, captura, workers, regras, build e CI)
-
-### 2.1 [Alta] Lembretes de vencimento nunca aparecem no Android 13+
-**Onde:** `app/src/main/AndroidManifest.xml`; `MainActivity.kt:309` (`scheduleNotifications`).
-
-**Problema:** o app pede `POST_NOTIFICATIONS` em tempo de execução, mas a permissão **não está declarada** no
-manifesto (conferido também no manifesto final gerado pelo build). No Android 13+ o pedido é negado
-automaticamente, sem mostrar diálogo; como o `NotificationScheduler.schedule` só roda quando a permissão é
-concedida, o worker de lembretes nem chega a ser agendado.
-
-**Passo a passo:**
-1. No `AndroidManifest.xml`, junto da permissão de internet:
-   `<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />`
-2. Agende o worker sempre (em `onCreate`), independente da permissão. No `NotificationWorker`, antes de
-   notificar, teste `NotificationManagerCompat.from(context).areNotificationsEnabled()` e saia se for `false`.
-3. Teste num emulador com API 33+: instale do zero, aceite o pedido e confira em
-   *App Inspection › Background Task Inspector* que o trabalho `finance_notification_check` existe.
-
-### 2.2 [Alta] Abrir a edição e salvar perde 1 centavo
-**Onde:** `ExpensesScreen.kt:451` e `:578`, `SavingsGoalScreen.kt:137` — `(valor * 100).toLong().toString()`.
-
-**Problema:** `toLong()` corta a fração. `0.29 * 100` vale `28.999999999999996` em `Double`, então o campo abre
-com R$ 0,28 e, ao salvar, grava o valor errado. Acontece com vários valores comuns (0,29; 1,15; 4,35; 9,95...).
-
-**Passo a passo:**
-1. Em `util/Money.kt`, crie `fun Double.toCents(): Long = (this * 100).roundToLong()`.
-2. Troque as três ocorrências por `valor.toCents().toString()`.
-3. Teste unitário: `assertEquals(29L, 0.29.toCents())`, `assertEquals(115L, 1.15.toCents())`.
-4. A solução definitiva é o item 1.3 (guardar centavos em `Long`), que elimina esse tipo de conversão.
-
 ### 2.3 [Alta] Depois de sair e entrar de novo, as telas continuam ligadas ao lar antigo
 **Onde:** `MainActivity.kt:257-261` (`viewModel(factory = factory)`) e `onLogout` (`MainActivity.kt:269`).
 
@@ -208,19 +149,6 @@ controla isso é o `dataExtractionRules`, que está vazio. Na troca de celular o
 celular novo a leitura da senha do banco lança exceção dentro de `getInstance`, e o app fecha toda vez que abre.
 
 **Passo a passo:**
-1. Preencha `data_extraction_rules.xml`:
-   ```xml
-   <data-extraction-rules>
-       <cloud-backup>
-           <exclude domain="database" path="." />
-           <exclude domain="sharedpref" path="." />
-       </cloud-backup>
-       <device-transfer>
-           <exclude domain="database" path="." />
-           <exclude domain="sharedpref" path="." />
-       </device-transfer>
-   </data-extraction-rules>
-   ```
 2. Em `getOrCreatePassphrase`, envolva a leitura em `try/catch`. Na falha: apague o arquivo
    `secure_db_prefs` (`context.deleteSharedPreferences`) e o banco (`context.deleteDatabase("finance_secure_db")`),
    gere uma senha nova e deixe o fluxo de `recoverHousehold` baixar tudo do Firestore. Faça o mesmo em
@@ -334,18 +262,6 @@ contas" da tela inicial.
 2. Antes de abrir o diálogo, busque as contagens e mostre: "Serão apagados X lançamentos e Y agendadas, para todos
    do lar. Isso não pode ser desfeito."
 3. Se a conta tiver lançamentos, ofereça "Arquivar" (coluna `archived`) em vez de apagar.
-
-### 2.11 [Média] Perfil corta os últimos botões em celular pequeno
-**Onde:** `ProfileScreen.kt:116-121` e `:392`.
-
-**Problema:** a tela é uma `Column` sem rolagem com 8 blocos e um `Spacer(Modifier.weight(1f))`. Em tela pequena
-ou fonte grande, "Limpeza total" e "Sair da conta" ficam fora da tela e não dá para alcançá-los.
-
-**Passo a passo:**
-1. Adicione `.verticalScroll(rememberScrollState())` à `Column`.
-2. Remova o `Spacer(weight)` (não funciona dentro de rolagem) e use um `Spacer(Modifier.height(24.dp))`.
-3. Teste com *Configurações › Tamanho da fonte* no máximo.
-
 ### 2.12 [Média] Quatro ViewModels leem o histórico inteiro a cada mudança
 **Onde:** `Dashboardviewmodel.kt`, `Expenseviewmodel.kt`, `BudgetViewModel.kt:41`, `ReportViewModel.kt:64`.
 
@@ -414,19 +330,6 @@ precisam de reflexão.
 3. Passe segredos por `env:` em vez de `${{ secrets.X }}` direto dentro do `run:` (evita que o valor entre no
    script do shell).
 4. Use `gradle/actions/setup-gradle` no lugar do `actions/cache` manual (cache melhor e mais rápido).
-
-### 2.16 [Baixa] Recorrência aparece em inglês na lista de despesas
-**Onde:** `ExpensesScreen.kt:315-317` — `recurrenceRule.name.lowercase()...` mostra "Monthly".
-
-**Passo a passo:** troque por `expense.recurrenceRule.label` (de `ui/util/Formatters.kt`), que já devolve
-"Mensal".
-
-### 2.17 [Baixa] Texto diz "Válido por 24 horas", mas o convite vale 1 hora
-**Onde:** `HouseholdScreen.kt:189`.
-
-**Passo a passo:** troque o texto por "Válido por 1 hora" (o `ProfileScreen.kt:296` já está certo). Melhor
-ainda: crie uma constante `INVITE_TTL_MS` no `HouseholdManager` e gere o texto a partir dela.
-
 ### 2.18 [Baixa] Categorias padrão podem duplicar
 **Onde:** `AppDatabase.kt:153-162` (seed com `UUID.randomUUID()`) e `ExpenseViewModel.addCategory` (ID
 determinístico por nome).
@@ -528,7 +431,7 @@ escura e confunde quem lê; parte das telas usa `appColors.background`, parte `D
 por tela, ao mexer nelas.
 
 ## Ordem sugerida
-1. **Rápidos e de alto impacto (uma tarde):** 2.1, 2.2, 2.16, 2.17, 1.1, 2.11, 2.4 (passo 1).
+1. **✓ Rápidos e de alto impacto (uma tarde):** ~~2.1, 2.2, 2.16, 2.17, 1.1, 2.11, 2.4 (passo 1)~~ **RESOLVIDO** (commit 2feb55c).
 2. **Consistência de dados:** 2.3, 2.7, 1.2, 2.6, 2.10.
 3. **Segurança:** 2.5, 2.20, 2.13 (itens 1 e 2).
 4. **Desempenho:** 1.4, 2.12, 2.14, 2.24.
