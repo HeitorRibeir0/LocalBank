@@ -41,7 +41,7 @@ jobs:
           echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > app/google-services.json
 
       - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew testDebugUnitTest lintDebug
 
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug
