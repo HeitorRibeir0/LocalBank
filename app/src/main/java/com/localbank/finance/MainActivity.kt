@@ -111,7 +111,9 @@ class MainActivity : ComponentActivity() {
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl)))
+                        if (info.downloadUrl.startsWith("https://github.com/HeitorRibeir0/LocalBank/releases/")) {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl)))
+                        }
                         updateInfo = null
                     }) {
                         Text("Baixar", color = appColors.primary,
