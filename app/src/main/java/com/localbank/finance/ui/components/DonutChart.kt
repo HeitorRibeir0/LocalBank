@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.localbank.ui.theme.*
+import com.localbank.finance.ui.util.PtBr
 import java.text.NumberFormat
 import java.util.*
 
@@ -118,7 +119,7 @@ fun DonutChart(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (active != null) {
                     Text(
-                        text = String.format("%.0f%%", active.value / total * 100),
+                        text = String.format(PtBr, "%.1f%%", active.value / total * 100),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = OnDarkText
@@ -184,7 +185,7 @@ fun DonutChart(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = String.format("%.0f%%", slice.value / total * 100),
+                    text = String.format(PtBr, "%.1f%%", slice.value / total * 100),
                     fontSize = 12.sp,
                     color = OnDarkTextSecondary.copy(alpha = rowAlpha),
                     modifier = Modifier.width(36.dp),
