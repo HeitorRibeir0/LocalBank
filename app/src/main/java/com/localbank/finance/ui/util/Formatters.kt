@@ -32,7 +32,9 @@ fun NumberFormat.signed(value: Double, positive: Boolean): String =
 
 @Composable
 fun rememberDateFormat(pattern: String): SimpleDateFormat =
-    remember(pattern) { SimpleDateFormat(pattern, PtBr) }
+    remember(pattern) {
+        SimpleDateFormat(pattern, PtBr).apply { isLenient = false }
+    }
 
 val RecurrenceRule.label: String
     get() = when (this) {
