@@ -14,7 +14,7 @@ object UpdateChecker {
 
     private const val KEY_VERSION_CODE = "latest_version_code"
     private const val KEY_VERSION_NAME = "latest_version_name"
-    private const val KEY_DOWNLOAD_URL = "apk_download_url"
+    private const val KEY_DOWNLOAD_URL = "apk_download_url"  // Mesmo nome usado no script release.yml
 
     suspend fun check(currentVersionCode: Int): UpdateInfo {
         val config = FirebaseRemoteConfig.getInstance()

@@ -44,6 +44,7 @@ import com.localbank.ui.theme.LocalBankTheme
 import com.localbank.ui.theme.*
 import com.localbank.finance.ui.viewmodel.*
 import com.localbank.finance.worker.NotificationScheduler
+import com.localbank.finance.update.ApkInstaller
 import kotlinx.coroutines.Dispatchers
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -108,8 +109,10 @@ class MainActivity : ComponentActivity() {
         }
 
         updateInfo?.let { info ->
+            var isDownloading by remember { mutableStateOf(false) }
+
             AlertDialog(
-                onDismissRequest = { updateInfo = null },
+                onDismissRequest = { if (!isDownloading) updateInfo = null },
                 containerColor = LocalAppColors.current.card,
                 icon = {
                     Icon(Icons.Default.SystemUpdate, null,
@@ -120,22 +123,49 @@ class MainActivity : ComponentActivity() {
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 },
                 text = {
-                    Text("A versão ${info.latestVersion} está disponível. Deseja baixar agora?",
-                        color = LocalAppColors.current.textSecondary)
+                    Column {
+                        Text("A versão ${info.latestVersion} está disponível.",
+                            color = LocalAppColors.current.textSecondary)
+                        if (isDownloading) {
+                            Spacer(Modifier.height(12.dp))
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = appColors.primary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text("Baixando...", color = LocalAppColors.current.textSecondary,
+                                fontSize = androidx.compose.material3.MaterialTheme.typography.labelSmall.fontSize)
+                        }
+                    }
                 },
                 confirmButton = {
-                    TextButton(onClick = {
-                        if (info.downloadUrl.startsWith("https://github.com/HeitorRibeir0/LocalBank/releases/")) {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl)))
-                        }
-                        updateInfo = null
-                    }) {
+                    TextButton(
+                        onClick = {
+                            isDownloading = true
+                            lifecycleScope.launch {
+                                val result = ApkInstaller.downloadAndInstall(
+                                    this@MainActivity,
+                                    info.downloadUrl
+                                )
+                                if (result.isFailure) {
+                                    isDownloading = false
+                                    updateInfo = null
+                                    // Erro: mostrar Toast ou log
+                                }
+                            }
+                        },
+                        enabled = !isDownloading
+                    ) {
                         Text("Baixar", color = appColors.primary,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { updateInfo = null }) {
+                    TextButton(
+                        onClick = { updateInfo = null },
+                        enabled = !isDownloading
+                    ) {
                         Text("Agora não", color = LocalAppColors.current.textSecondary)
                     }
                 }
