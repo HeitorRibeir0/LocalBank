@@ -91,10 +91,16 @@ interface AccountDao {
 @Dao
 interface CategoryDao {
 
-    @Query("SELECT DISTINCT * FROM categories ORDER BY name ASC")
+    @Query("""
+        SELECT id, name, icon, colorHex, type FROM categories
+        GROUP BY id ORDER BY name ASC
+    """)
     fun getAllCategories(): Flow<List<Category>>
 
-    @Query("SELECT DISTINCT * FROM categories WHERE type = :type ORDER BY name ASC")
+    @Query("""
+        SELECT id, name, icon, colorHex, type FROM categories
+        WHERE type = :type GROUP BY id ORDER BY name ASC
+    """)
     fun getByType(type: TransactionType): Flow<List<Category>>
 
     @Query("SELECT * FROM categories WHERE id = :id")
