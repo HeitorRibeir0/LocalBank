@@ -130,11 +130,14 @@ object HouseholdManager {
             "createdAt" to System.currentTimeMillis()
         )
 
-        householdRef.set(data).await()
-
-        db.collection("invites").document(inviteCode).set(
+        // Batch para atomicidade: ambos ou nenhum
+        val batch = db.batch()
+        batch.set(householdRef, data)
+        batch.set(
+            db.collection("invites").document(inviteCode),
             hashMapOf("householdId" to householdId)
-        ).await()
+        )
+        batch.commit().await()
 
         saveHouseholdId(context, householdId)
         return inviteCode

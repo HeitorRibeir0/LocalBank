@@ -155,10 +155,11 @@ abstract class AppDatabase : RoomDatabase() {
                 db: SupportSQLiteDatabase,
                 name: String, icon: String, colorHex: String, type: String
             ) {
+                val categoryId = UUID.nameUUIDFromBytes("$type:${name.lowercase()}".toByteArray()).toString()
                 db.execSQL(
-                    """INSERT INTO categories (id, name, icon, colorHex, type) 
+                    """INSERT INTO categories (id, name, icon, colorHex, type)
                        VALUES (?, ?, ?, ?, ?)""",
-                    arrayOf(UUID.randomUUID().toString(), name, icon, colorHex, type)
+                    arrayOf(categoryId, name, icon, colorHex, type)
                 )
             }
         }
