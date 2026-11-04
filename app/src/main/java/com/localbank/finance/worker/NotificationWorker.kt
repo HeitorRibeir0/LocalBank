@@ -9,6 +9,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.localbank.finance.data.database.AppDatabase
 import com.localbank.finance.data.repository.FinanceRepository
+import com.localbank.finance.util.DateRanges
 import java.text.NumberFormat
 import java.util.*
 
@@ -41,7 +42,7 @@ class NotificationWorker(
         val manager  = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         pending.forEach { expense ->
-            val daysLeft = ((expense.dueDate - now) / (1000 * 60 * 60 * 24)).toInt()
+            val daysLeft = DateRanges.daysUntil(expense.dueDate, now)
 
             val message = when {
                 daysLeft <= 0 -> "${expense.description} vence hoje! (${currency.format(expense.amount)})"

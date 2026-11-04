@@ -37,12 +37,13 @@ class BuildDashboardTest {
     )
 
     @Test
-    fun `por dia desconta contas do mes e divide pelos dias restantes`() {
+    fun `saldo total soma as contas e sobra desconta contas do mes`() {
         val state = buildDashboard(emptyList(), scheduled, emptyList(), accounts, now)
 
         assertEquals(15, state.daysLeft)
+        assertEquals(3500.0, state.accountsBalance, 0.001)
         assertEquals(1619.90, state.pendingThisMonth, 0.001)          // 1450 + 119,90 + 50 atrasada
-        assertEquals((3500.0 - 1619.90) / 15, state.dailyAllowance, 0.001)
+        assertEquals(3500.0 - 1619.90, state.freeAfterBills, 0.001)
     }
 
     @Test
@@ -65,11 +66,12 @@ class BuildDashboardTest {
     }
 
     @Test
-    fun `saldo menor que as contas deixa o valor por dia negativo`() {
+    fun `saldo menor que as contas deixa a sobra negativa`() {
         val poor = listOf(Account(id = "a", name = "Carteira", type = AccountType.WALLET, balance = 100.0))
         val state = buildDashboard(emptyList(), scheduled, emptyList(), poor, now)
 
-        assertTrue(state.dailyAllowance < 0)
+        assertEquals(100.0, state.accountsBalance, 0.001)
+        assertTrue(state.freeAfterBills < 0)
     }
 
     @Test

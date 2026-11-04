@@ -9,6 +9,20 @@ data class DateRange(val from: Long, val to: Long) {
 }
 
 object DateRanges {
+    private const val DAY_MS = 24 * 60 * 60 * 1000L
+
+    /** Milissegundos do início do dia (00:00:00.000) para um timestamp. */
+    fun startOfDay(ms: Long): Long = Calendar.getInstance().apply {
+        timeInMillis = ms
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    /** Dias de calendário entre hoje e [ms]: 0 = hoje, 1 = amanhã, -1 = ontem. */
+    fun daysUntil(ms: Long, now: Long = System.currentTimeMillis()): Int =
+        Math.floorDiv(startOfDay(ms) - startOfDay(now), DAY_MS).toInt()
 
     /** Do primeiro milissegundo do mês de [cal] até o último. */
     fun month(cal: Calendar = Calendar.getInstance()): DateRange {

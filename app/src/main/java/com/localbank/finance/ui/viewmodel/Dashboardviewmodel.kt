@@ -27,7 +27,7 @@ data class DashboardUiState(
     // Ritmo do mês
     val accountsBalance: Double = 0.0,          // saldo somado de todas as contas
     val pendingThisMonth: Double = 0.0,         // agendadas não pagas até o fim do mês (inclui atrasadas)
-    val dailyAllowance: Double = 0.0,           // (saldo − pendente) ÷ dias restantes
+    val freeAfterBills: Double = 0.0,           // saldo − pendente do mês (negativo = falta dinheiro)
     val daysLeft: Int = 1,                      // inclui hoje
     val today: Int = 1,
     val billMarks: List<BillMark> = emptyList(),// um item por dia do mês
@@ -62,8 +62,6 @@ class DashboardViewModel(private val repository: FinanceRepository) : ViewModel(
     )
 }
 
-private const val DAY_MS = 24L * 60 * 60 * 1000
-
 /** Cálculo puro do painel — separado do ViewModel para poder ser testado. */
 internal fun buildDashboard(
     transactions: List<Transaction>,
@@ -73,6 +71,7 @@ internal fun buildDashboard(
     now: Calendar
 ): DashboardUiState {
     val nowMs = now.timeInMillis
+    val DAY_MS = 24L * 60 * 60 * 1000
     val month = DateRanges.month(now)
     val monthTransactions = transactions.filter { it.date in month }
     val categoriesById = categories.associateBy { it.id }
@@ -102,7 +101,7 @@ internal fun buildDashboard(
     val (urgent, upcoming) = pending
         .filter { it.dueDate <= nowMs + 30 * DAY_MS }
         .sortedBy { it.dueDate }
-        .partition { (it.dueDate - nowMs) / DAY_MS <= 3 }
+        .partition { DateRanges.daysUntil(it.dueDate, nowMs) <= 3 }
 
     // ── Gastos por categoria no mês ──
     val categoryExpenses = monthTransactions
@@ -121,7 +120,7 @@ internal fun buildDashboard(
     return DashboardUiState(
         accountsBalance    = accountsBalance,
         pendingThisMonth   = pendingThisMonth,
-        dailyAllowance     = (accountsBalance - pendingThisMonth) / daysLeft,
+        freeAfterBills     = accountsBalance - pendingThisMonth,
         daysLeft           = daysLeft,
         today              = today,
         billMarks          = marks,

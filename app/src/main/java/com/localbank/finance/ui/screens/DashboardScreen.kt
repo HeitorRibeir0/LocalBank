@@ -28,6 +28,7 @@ import com.localbank.finance.ui.util.rememberAmountFormat
 import com.localbank.finance.ui.util.rememberCurrencyFormat
 import com.localbank.finance.ui.util.rememberDateFormat
 import com.localbank.finance.ui.util.signed
+import com.localbank.finance.util.DateRanges
 import com.localbank.finance.ui.viewmodel.BillMark
 import com.localbank.finance.ui.viewmodel.DashboardUiState
 import com.localbank.finance.ui.viewmodel.DashboardViewModel
@@ -35,8 +36,6 @@ import com.localbank.ui.theme.AppColors
 import com.localbank.ui.theme.LocalAppColors
 import java.util.Calendar
 import java.util.Date
-
-private const val DAY_MS = 24L * 60 * 60 * 1000
 
 @Composable
 fun DashboardScreen(
@@ -77,49 +76,44 @@ fun DashboardScreen(
     }
 }
 
-// ── 1. Ritmo do mês: quanto dá para gastar por dia + régua de dias ──────────────
+// ── 1. Ritmo do mês: dinheiro nas contas + régua de dias ───────────────────────
 
 @Composable
 private fun MonthRhythm(state: DashboardUiState, c: AppColors) {
     val currency = rememberCurrencyFormat()
     val amount = rememberAmountFormat()
     val monthName = rememberDateFormat("MMMM").format(Date()).replaceFirstChar { it.uppercase() }
-    val over = state.dailyAllowance < 0
+    val negative = state.accountsBalance < 0
+    val short = state.freeAfterBills < 0
 
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(monthName, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.textPrimary,
-                modifier = Modifier.semantics { heading() })
-            Text("Saldo nas contas: ${currency.format(state.accountsBalance)}",
-                fontSize = 13.sp, color = c.textSecondary)
-        }
+        Text(monthName, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.textPrimary,
+            modifier = Modifier.semantics { heading() })
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(if (over) "Passou do orçamento do mês" else "Dá para gastar",
-                fontSize = 15.sp, color = if (over) c.error else c.textSecondary)
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val value = currency.format(kotlin.math.abs(state.dailyAllowance))
-                Text(
-                    value,
-                    style = MaterialTheme.typography.displayLarge.let {
-                        // Valores longos encolhem para caber ao lado de "por dia"
-                        when {
-                            value.length > 12 -> it.copy(fontSize = 34.sp, lineHeight = 40.sp)
-                            value.length > 9  -> it.copy(fontSize = 42.sp, lineHeight = 48.sp)
-                            else -> it
-                        }
-                    },
-                    color = if (over) c.error else c.brandPrimary,
-                    maxLines = 1
-                )
-                Text("por dia", fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
-                    color = c.textPrimary, modifier = Modifier.padding(bottom = 8.dp))
-            }
+            Text("Dinheiro nas contas", fontSize = 15.sp, color = c.textSecondary)
+            val value = currency.format(state.accountsBalance)
             Text(
-                if (over) "Faltam ${currency.format(-state.dailyAllowance * state.daysLeft)} para cobrir as contas até o fim do mês."
-                else if (state.daysLeft == 1) "Hoje é o último dia do mês, já descontando as contas agendadas."
-                else "Pelos próximos ${state.daysLeft} dias, já descontando as contas que vencem até o fim do mês.",
-                fontSize = 14.sp, lineHeight = 20.sp, color = c.textSecondary
+                value,
+                style = MaterialTheme.typography.displayLarge.let {
+                    // Valores longos encolhem para caber numa linha
+                    when {
+                        value.length > 14 -> it.copy(fontSize = 38.sp, lineHeight = 44.sp)
+                        value.length > 11 -> it.copy(fontSize = 46.sp, lineHeight = 52.sp)
+                        else -> it
+                    }
+                },
+                color = if (negative) c.error else c.brandPrimary,
+                maxLines = 1
+            )
+            Text(
+                when {
+                    state.pendingThisMonth <= 0 -> "Nenhuma conta a pagar até o fim do mês."
+                    short -> "Faltam ${currency.format(-state.freeAfterBills)} para cobrir as contas até o fim do mês."
+                    else -> "Sobram ${currency.format(state.freeAfterBills)} depois das contas que vencem até o fim do mês."
+                },
+                fontSize = 14.sp, lineHeight = 20.sp,
+                color = if (short) c.error else c.textSecondary
             )
         }
 
@@ -210,11 +204,11 @@ private fun DueSoon(
             expenses.forEachIndexed { index, expense ->
                 val urgent = expense.id in urgentIds
                 val tone = if (urgent) c.error else c.textPrimary
-                val daysLeft = Math.floorDiv(startOfDay(expense.dueDate) - startOfDay(System.currentTimeMillis()), DAY_MS)
+                val daysLeft = DateRanges.daysUntil(expense.dueDate)
                 val whenLabel = when {
                     daysLeft < 0  -> "atrasada"
-                    daysLeft == 0L -> "hoje"
-                    daysLeft == 1L -> "amanhã"
+                    daysLeft == 0 -> "hoje"
+                    daysLeft == 1 -> "amanhã"
                     else -> weekday.format(Date(expense.dueDate)).trimEnd('.')
                 }
                 val category = expense.categoryId?.let { categoryNames[it] } ?: "Sem categoria"
@@ -347,17 +341,11 @@ private fun SectionHeading(text: String, c: AppColors) {
         modifier = Modifier.semantics { heading() })
 }
 
-private fun startOfDay(ms: Long): Long = Calendar.getInstance().apply {
-    timeInMillis = ms
-    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
-    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-}.timeInMillis
-
 private fun relativeDay(tx: Transaction, fmt: java.text.SimpleDateFormat): String {
-    val diff = Math.floorDiv(startOfDay(System.currentTimeMillis()) - startOfDay(tx.date), DAY_MS)
-    return when (diff) {
-        0L -> "hoje"
-        1L -> "ontem"
+    val daysAgo = -DateRanges.daysUntil(tx.date)
+    return when (daysAgo) {
+        0 -> "hoje"
+        1 -> "ontem"
         else -> fmt.format(Date(tx.date))
     }
 }

@@ -2,6 +2,7 @@ package com.localbank.finance.ui.screens
 
 import com.localbank.finance.ui.util.rememberCurrencyFormat
 import com.localbank.finance.ui.util.rememberDateFormat
+import com.localbank.finance.util.toCents
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -134,7 +135,7 @@ fun SavingsGoalScreen(viewModel: SavingsGoalViewModel) {
         GoalFormDialog(
             title = "Editar meta",
             initialName = goal.name,
-            initialTarget = (goal.targetAmount * 100).toLong().toString(),
+            initialTarget = goal.targetAmount.toCents().toString(),
             initialColor = goal.colorHex,
             initialDeadline = goal.deadline,
             onDismiss = { showEditDialog = null },

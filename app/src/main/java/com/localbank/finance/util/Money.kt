@@ -8,3 +8,6 @@ import kotlin.math.roundToLong
  * flutuante não se acumule em saldos e somas.
  */
 fun Double.roundCents(): Double = (this * 100.0).roundToLong() / 100.0
+
+/** Converte um valor em reais para centavos (Long), arredondando corretamente. */
+fun Double.toCents(): Long = (this * 100).roundToLong()

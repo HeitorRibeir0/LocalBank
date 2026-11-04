@@ -186,7 +186,7 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                             }
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "Válido por 24 horas",
+                                "Válido por 1 hora",
                                 fontSize = 12.sp,
                                 color = OnDarkTextSecondary
                             )

@@ -1,6 +1,7 @@
 package com.localbank.finance.ui.screens
 
 import com.localbank.finance.util.DateRanges
+import com.localbank.finance.util.toCents
 import com.localbank.finance.ui.util.rememberCurrencyFormat
 import com.localbank.finance.ui.util.rememberDateFormat
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -300,7 +301,7 @@ fun ScheduledCard(
     onEdit: () -> Unit = {}
 ) {
     val c = LocalAppColors.current
-    val daysLeft = ((expense.dueDate - System.currentTimeMillis()) / (1000 * 60 * 60 * 24)).toInt()
+    val daysLeft = DateRanges.daysUntil(expense.dueDate)
     val isOverdue = daysLeft < 0
 
     val accentColor = when {
@@ -313,7 +314,7 @@ fun ScheduledCard(
         daysLeft == 0 -> "Vence hoje"
         else          -> "Vence ${sdf.format(Date(expense.dueDate))} · $daysLeft dias"
     }.let { if (expense.isRecurring && expense.recurrenceRule != null)
-        "$it · ${expense.recurrenceRule.name.lowercase().replaceFirstChar { ch -> ch.uppercase() }}"
+        "$it · ${expense.recurrenceRule.label}"
     else it }
 
     Card(
@@ -448,7 +449,7 @@ fun EditScheduledDialog(
     val sdf = rememberDateFormat("dd/MM/yyyy")
 
     var description by remember { mutableStateOf(expense.description) }
-    var amountRaw by remember { mutableStateOf((expense.amount * 100).toLong().toString()) }
+    var amountRaw by remember { mutableStateOf(expense.amount.toCents().toString()) }
     var dueDateText by remember { mutableStateOf(sdf.format(Date(expense.dueDate))) }
     var isRecurring by remember { mutableStateOf(expense.isRecurring) }
     var recurrenceRule by remember { mutableStateOf(expense.recurrenceRule ?: RecurrenceRule.MONTHLY) }
@@ -575,7 +576,7 @@ fun EditTransactionDialog(
 
     var description by remember { mutableStateOf(transaction.description) }
     var amountRaw by remember {
-        mutableStateOf((transaction.amount * 100).toLong().toString())
+        mutableStateOf(transaction.amount.toCents().toString())
     }
     var isIncome by remember { mutableStateOf(transaction.type == TransactionType.INCOME) }
     var selectedAccount by remember { mutableStateOf(accounts.find { it.id == transaction.accountId }) }
