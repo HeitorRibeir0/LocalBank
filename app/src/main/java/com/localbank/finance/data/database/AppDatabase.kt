@@ -63,12 +63,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // Notificações com estágios (3 dias antes + dia do vencimento)
+        // notified (bool) → notifiedStage (0 nada, 1 avisou "faltam até 3 dias", 2 avisou "vence hoje").
+        // Recria a tabela: o Room recusa o banco se a coluna antiga continuar lá.
         private val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "ALTER TABLE scheduled_expenses ADD COLUMN notifiedStage INTEGER NOT NULL DEFAULT 0"
+                    "CREATE TABLE IF NOT EXISTS `scheduled_expenses_new` (`id` TEXT NOT NULL, " +
+                        "`accountId` TEXT NOT NULL, `categoryId` TEXT, `amount` REAL NOT NULL, " +
+                        "`description` TEXT NOT NULL, `dueDate` INTEGER NOT NULL, `isRecurring` INTEGER NOT NULL, " +
+                        "`recurrenceRule` TEXT, `isPaid` INTEGER NOT NULL, `notifiedStage` INTEGER NOT NULL, " +
+                        "`createdBy` TEXT, PRIMARY KEY(`id`), " +
+                        "FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                        "FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )"
                 )
+                db.execSQL(
+                    "INSERT INTO `scheduled_expenses_new` (id, accountId, categoryId, amount, description, dueDate, " +
+                        "isRecurring, recurrenceRule, isPaid, notifiedStage, createdBy) " +
+                        "SELECT id, accountId, categoryId, amount, description, dueDate, isRecurring, recurrenceRule, " +
+                        "isPaid, CASE WHEN notified = 1 THEN 1 ELSE 0 END, createdBy FROM `scheduled_expenses`"
+                )
+                db.execSQL("DROP TABLE `scheduled_expenses`")
+                db.execSQL("ALTER TABLE `scheduled_expenses_new` RENAME TO `scheduled_expenses`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_scheduled_expenses_accountId` ON `scheduled_expenses` (`accountId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_scheduled_expenses_categoryId` ON `scheduled_expenses` (`categoryId`)")
             }
         }
 

@@ -192,15 +192,6 @@ object HouseholdManager {
     /**
      * Entra num lar existente. Após uso, o convite é invalidado.
      */
-    /**
-     * Entra no lar usando o código de convite.
-     *
-     * NOTA (2.5): Com as novas regras de Firestore (paliativo), esta função não conseguirá
-     * ler /invites porque o cliente não tem permissão. Será necessário implementar:
-     * - Cloud Function `joinHousehold({ code })` que faz a entrada
-     * - Atualizar este método para chamar a Cloud Function
-     * - Validação do código agora feita no servidor
-     */
     suspend fun joinHousehold(
         context: Context,
         userId: String,
@@ -268,11 +259,8 @@ object HouseholdManager {
     }
 
     /**
-     * Código de 6 caracteres criptograficamente seguro, sem caracteres ambíguos (I, O, 0, 1).
+     * Código de 6 caracteres (SecureRandom), sem caracteres ambíguos (I, O, 0, 1).
      * 32^6 = ~1 bilhão de combinações possíveis.
-     *
-     * TODO (2.5): Mover para Cloud Function joinHousehold({ code }) que valida e cria a entrada.
-     * Isto evitará que cliente leia/crie/delete convites diretamente.
      */
     private fun generateInviteCode(): String {
         val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"

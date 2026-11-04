@@ -35,12 +35,12 @@ class FinanceRepository(
 
     suspend fun insertAccount(account: Account) {
         accountDao.insert(account)
-        syncPush { it.pushAccount(householdId!!, account) }
+        syncPush { s, hid -> s.pushAccount(hid, account) }
     }
 
     suspend fun updateAccount(account: Account) {
         accountDao.update(account)
-        syncPush { it.pushAccount(householdId!!, account) }
+        syncPush { s, hid -> s.pushAccount(hid, account) }
     }
 
     suspend fun getAccountCounts(accountId: String): Pair<Int, Int> {
@@ -54,10 +54,10 @@ class FinanceRepository(
         val txIds = transactionDao.getAllOnce().filter { it.accountId == account.id }.map { it.id }
         val schedIds = scheduledExpenseDao.getAllOnce().filter { it.accountId == account.id }.map { it.id }
         accountDao.delete(account)
-        syncPush {
-            it.deleteRemoteIds(householdId!!, "transactions", txIds)
-            it.deleteRemoteIds(householdId!!, "scheduled_expenses", schedIds)
-            it.deleteRemote(householdId!!, "accounts", account.id)
+        syncPush { s, hid ->
+            s.deleteRemoteIds(hid, "transactions", txIds)
+            s.deleteRemoteIds(hid, "scheduled_expenses", schedIds)
+            s.deleteRemote(hid, "accounts", account.id)
         }
     }
 
@@ -75,12 +75,12 @@ class FinanceRepository(
 
     suspend fun updateCategory(category: Category) {
         categoryDao.update(category)
-        syncPush { it.pushCategory(householdId!!, category) }
+        syncPush { s, hid -> s.pushCategory(hid, category) }
     }
 
     suspend fun insertCategory(category: Category) {
         categoryDao.insert(category)
-        syncPush { it.pushCategory(householdId!!, category) }
+        syncPush { s, hid -> s.pushCategory(hid, category) }
     }
 
     // ─────────────────────────────────────────────
@@ -114,26 +114,26 @@ class FinanceRepository(
     suspend fun insertTransaction(transaction: Transaction) {
         require(transaction.amount > 0) { "Valor deve ser positivo" }
         transactionDao.insert(transaction)
-        syncPush { it.pushTransaction(householdId!!, transaction) }
+        syncPush { s, hid -> s.pushTransaction(hid, transaction) }
         refreshBalances(transaction.accountId)
     }
 
     suspend fun updateTransaction(old: Transaction, new: Transaction) {
         transactionDao.insert(new)
-        syncPush { it.pushTransaction(householdId!!, new) }
+        syncPush { s, hid -> s.pushTransaction(hid, new) }
         refreshBalances(old.accountId, new.accountId)
     }
 
     suspend fun deleteTransaction(transaction: Transaction) {
         transactionDao.delete(transaction)
-        syncPush { it.deleteRemote(householdId!!, "transactions", transaction.id) }
+        syncPush { s, hid -> s.deleteRemote(hid, "transactions", transaction.id) }
 
         // Se era pagamento de agendada, marca como não pago
         if (transaction.scheduledId != null) {
             val scheduled = scheduledExpenseDao.getById(transaction.scheduledId)
             if (scheduled != null) {
                 scheduledExpenseDao.update(scheduled.copy(isPaid = false))
-                syncPush { it.pushScheduledExpense(householdId!!, scheduled.copy(isPaid = false)) }
+                syncPush { s, hid -> s.pushScheduledExpense(hid, scheduled.copy(isPaid = false)) }
             }
         }
 
@@ -177,14 +177,14 @@ class FinanceRepository(
             pendingCaptureDao?.delete(capture.id)
         }
         // Só faz push após sucesso local
-        syncPush { it.pushTransaction(householdId!!, tx) }
+        syncPush { s, hid -> s.pushTransaction(hid, tx) }
     }
 
     /** Recalcula o saldo das contas afetadas e publica o valor atualizado. */
     private suspend fun refreshBalances(vararg accountIds: String) {
         accountIds.distinct().forEach { id ->
             accountDao.recalculateBalance(id)
-            accountDao.getById(id)?.let { acc -> syncPush { it.pushAccount(householdId!!, acc) } }
+            accountDao.getById(id)?.let { acc -> syncPush { s, hid -> s.pushAccount(hid, acc) } }
         }
     }
 
@@ -197,7 +197,7 @@ class FinanceRepository(
 
     suspend fun insertScheduled(expense: ScheduledExpense) {
         scheduledExpenseDao.insert(expense)
-        syncPush { it.pushScheduledExpense(householdId!!, expense) }
+        syncPush { s, hid -> s.pushScheduledExpense(hid, expense) }
     }
 
     suspend fun updateScheduled(expense: ScheduledExpense) {
@@ -209,26 +209,20 @@ class FinanceRepository(
             expense
         }
         scheduledExpenseDao.update(toUpdate)
-        syncPush { it.pushScheduledExpense(householdId!!, toUpdate) }
+        syncPush { s, hid -> s.pushScheduledExpense(hid, toUpdate) }
     }
 
     suspend fun deleteScheduled(expense: ScheduledExpense) {
         scheduledExpenseDao.delete(expense)
-        syncPush { it.deleteRemote(householdId!!, "scheduled_expenses", expense.id) }
+        syncPush { s, hid -> s.deleteRemote(hid, "scheduled_expenses", expense.id) }
     }
 
-    suspend fun getPendingNotification(now: Long, in7Days: Long): List<ScheduledExpense> =
-        scheduledExpenseDao.getPendingNotification(now, in7Days)
+    suspend fun getPendingNotification(until: Long): List<ScheduledExpense> =
+        scheduledExpenseDao.getPendingNotification(until)
 
-    suspend fun markAsNotified(id: String) =
-        scheduledExpenseDao.markAsNotified(id)
-
-    /** Marca como avisada e envia a marcação ao Firestore. */
-    suspend fun markNotified(expense: ScheduledExpense) {
-        val nextStage = (expense.notifiedStage + 1).coerceAtMost(2)
-        scheduledExpenseDao.markAsNotified(expense.id)
-        syncPush { it.pushScheduledExpense(householdId!!, expense.copy(notifiedStage = nextStage)) }
-    }
+    // Só local: cada aparelho do lar avisa a sua pessoa
+    suspend fun setNotifiedStage(id: String, stage: Int) =
+        scheduledExpenseDao.setNotifiedStage(id, stage)
 
     suspend fun payScheduledExpense(expense: ScheduledExpense) {
         val payResult: PayResult
@@ -239,13 +233,13 @@ class FinanceRepository(
             payResult = payScheduledExpenseInternal(expense)
         }
         // Só faz push após a transação local ter sucesso
-        syncPush { it.pushTransaction(householdId!!, payResult.tx) }
-        syncPush { it.pushScheduledExpense(householdId!!, payResult.paid) }
+        syncPush { s, hid -> s.pushTransaction(hid, payResult.tx) }
+        syncPush { s, hid -> s.pushScheduledExpense(hid, payResult.paid) }
         if (payResult.next != null) {
-            syncPush { it.pushScheduledExpense(householdId!!, payResult.next) }
+            syncPush { s, hid -> s.pushScheduledExpense(hid, payResult.next) }
         }
         if (payResult.account != null) {
-            syncPush { it.pushAccount(householdId!!, payResult.account) }
+            syncPush { s, hid -> s.pushAccount(hid, payResult.account) }
         }
     }
 
@@ -309,17 +303,17 @@ class FinanceRepository(
 
     suspend fun insertBudget(budget: Budget) {
         budgetDao.insert(budget)
-        syncPush { it.pushBudget(householdId!!, budget) }
+        syncPush { s, hid -> s.pushBudget(hid, budget) }
     }
 
     suspend fun updateBudget(budget: Budget) {
         budgetDao.update(budget)
-        syncPush { it.pushBudget(householdId!!, budget) }
+        syncPush { s, hid -> s.pushBudget(hid, budget) }
     }
 
     suspend fun deleteBudget(budget: Budget) {
         budgetDao.delete(budget)
-        syncPush { it.deleteRemote(householdId!!, "budgets", budget.id) }
+        syncPush { s, hid -> s.deleteRemote(hid, "budgets", budget.id) }
     }
 
     // ─────────────────────────────────────────────
@@ -331,13 +325,13 @@ class FinanceRepository(
 
     suspend fun insertSavingsGoal(goal: SavingsGoal) {
         savingsGoalDao.insert(goal)
-        syncPush { it.pushSavingsGoal(householdId!!, goal) }
+        syncPush { s, hid -> s.pushSavingsGoal(hid, goal) }
     }
 
     /** Atualiza nome, alvo, cor e prazo — o valor guardado só muda por [depositToGoal]. */
     suspend fun updateSavingsGoalMeta(goal: SavingsGoal) {
         savingsGoalDao.updateMeta(goal.id, goal.name, goal.targetAmount, goal.colorHex, goal.deadline)
-        syncPush { it.pushSavingsGoalMeta(householdId!!, goal) }
+        syncPush { s, hid -> s.pushSavingsGoalMeta(hid, goal) }
     }
 
     suspend fun depositToGoal(goalId: String, amount: Double) {
@@ -345,23 +339,23 @@ class FinanceRepository(
         val before = dao.getById(goalId)?.savedAmount ?: return
         dao.addToSaved(goalId, amount)
         val applied = (dao.getById(goalId)?.savedAmount ?: before) - before
-        if (applied > 0) syncPush { it.incrementGoalSaved(householdId!!, goalId, applied) }
+        if (applied > 0) syncPush { s, hid -> s.incrementGoalSaved(hid, goalId, applied) }
     }
 
     suspend fun deleteSavingsGoal(goal: SavingsGoal) {
         savingsGoalDao.delete(goal)
-        syncPush { it.deleteRemote(householdId!!, "savings_goals", goal.id) }
+        syncPush { s, hid -> s.deleteRemote(hid, "savings_goals", goal.id) }
     }
 
     // ─────────────────────────────────────────────
     // Sync helper
     // ─────────────────────────────────────────────
 
-    private fun syncPush(action: (FirestoreSyncManager) -> Unit) {
+    private inline fun syncPush(action: (FirestoreSyncManager, String) -> Unit) {
         val sync = syncManager ?: return
         val hid = householdId ?: return
-        try { action(sync) } catch (e: Exception) {
-            android.util.Log.w("FinanceRepository", "Sync failed (offline first): ${e.message}", e)
+        try { action(sync, hid) } catch (e: Exception) {
+            android.util.Log.w("FinanceRepository", "push falhou", e)
         }
     }
 }

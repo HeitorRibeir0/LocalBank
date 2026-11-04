@@ -1,5 +1,6 @@
 package com.localbank.finance.ui.screens
 
+import com.localbank.finance.util.DateRange
 import com.localbank.finance.util.DateRanges
 import com.localbank.finance.util.toCents
 import com.localbank.finance.ui.util.rememberCurrencyFormat
@@ -43,7 +44,7 @@ import java.util.*
 
 @Composable
 fun ExpensesScreen(viewModel: ExpenseViewModel) {
-    val transactions by viewModel.transactions.collectAsState()
+    val filteredTransactions by viewModel.transactions.collectAsState()
     val scheduled    by viewModel.scheduledExpenses.collectAsState()
     val categories   by viewModel.categories.collectAsState()
     val accounts     by viewModel.accounts.collectAsState()
@@ -72,9 +73,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
     }
     val (monthFrom, monthTo) = remember(selectedCal.value) { DateRanges.month(selectedCal.value) }
 
-    val filteredTransactions = remember(transactions, monthFrom, monthTo) {
-        transactions.filter { it.date in monthFrom..monthTo }
-    }
+    LaunchedEffect(monthFrom, monthTo) { viewModel.setPeriod(DateRange(monthFrom, monthTo)) }
     val pendingScheduled = remember(scheduled, monthFrom, monthTo) {
         scheduled.filter { !it.isPaid && it.dueDate in monthFrom..monthTo }
     }

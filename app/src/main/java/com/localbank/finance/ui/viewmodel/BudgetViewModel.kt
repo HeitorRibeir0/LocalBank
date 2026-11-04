@@ -42,7 +42,7 @@ class BudgetViewModel(private val repository: FinanceRepository) : ViewModel() {
             repository.getExpenseByCategory(month.from, month.to)
         ) { budgets, categories, expenseByCategory ->
 
-            val spentByCategory = expenseByCategory.associate { it.categoryId to (it.total ?: 0.0) }
+            val spentByCategory = expenseByCategory.associate { it.categoryId to it.total }
             val categoriesById = categories.associateBy { it.id }
 
             val budgetsWithProgress = budgets.map { budget ->

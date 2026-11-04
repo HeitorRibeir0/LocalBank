@@ -29,25 +29,32 @@ class NotificationWorker(
             savingsGoalDao      = db.savingsGoalDao()
         )
 
-        val now      = System.currentTimeMillis()
-        val in7Days  = now + 7L * 24 * 60 * 60 * 1000
+        val now = System.currentTimeMillis()
+        val pending = repository.getPendingNotification(now + 4L * 24 * 60 * 60 * 1000)
 
-        val pending = repository.getPendingNotification(now, in7Days)
-
-        if (pending.isEmpty()) return Result.success()
+        // Estágio 1: faltam 1 a 3 dias. Estágio 2: vence hoje ou já venceu.
+        val toNotify = pending.mapNotNull { expense ->
+            val days = DateRanges.daysUntil(expense.dueDate, now)
+            when {
+                days <= 0 && expense.notifiedStage < 2 -> Triple(expense, days, 2)
+                days in 1..3 && expense.notifiedStage < 1 -> Triple(expense, days, 1)
+                else -> null
+            }
+        }
+        if (toNotify.isEmpty()) return Result.success()
 
         createNotificationChannel()
 
         val currency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR"))
         val manager  = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        pending.forEach { expense ->
-            val daysLeft = DateRanges.daysUntil(expense.dueDate, now)
-
+        toNotify.forEach { (expense, days, stage) ->
+            val value = currency.format(expense.amount)
             val message = when {
-                daysLeft <= 0 -> "${expense.description} vence hoje! (${currency.format(expense.amount)})"
-                daysLeft == 1 -> "${expense.description} vence amanhã (${currency.format(expense.amount)})"
-                else -> "${expense.description} vence em $daysLeft dias (${currency.format(expense.amount)})"
+                days < 0  -> "${expense.description} está atrasada ($value)"
+                days == 0 -> "${expense.description} vence hoje! ($value)"
+                days == 1 -> "${expense.description} vence amanhã ($value)"
+                else      -> "${expense.description} vence em $days dias ($value)"
             }
 
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
@@ -59,9 +66,7 @@ class NotificationWorker(
                 .build()
 
             manager.notify(expense.id.hashCode(), notification)
-
-            // marca para não notificar de novo
-            repository.markAsNotified(expense.id)
+            repository.setNotifiedStage(expense.id, stage)
         }
 
         return Result.success()

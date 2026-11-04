@@ -16,15 +16,15 @@ object NotificationScheduler {
             .build()
 
         val workRequest = PeriodicWorkRequestBuilder<NotificationWorker>(
-            repeatInterval = 1,
-            repeatIntervalTimeUnit = TimeUnit.DAYS  // verifica uma vez por dia
+            repeatInterval = 12,
+            repeatIntervalTimeUnit = TimeUnit.HOURS  // 2x por dia: a hora da execução é imprevisível
         )
             .setConstraints(constraints)
             .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP, // se já existe, não recria
+            ExistingPeriodicWorkPolicy.UPDATE, // aplica o novo intervalo sem reiniciar a contagem
             workRequest
         )
     }

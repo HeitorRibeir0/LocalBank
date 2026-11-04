@@ -66,4 +66,23 @@ class PurchaseParserTest {
         assertEquals(5000L, result?.amountCents)
         assertEquals("Compra", result?.merchant)
     }
+
+    @Test
+    fun merchantAfterEm() {
+        val result = PurchaseParser.parse("Compra aprovada de R$ 125,50 em PADARIA DO JOÃO")
+        assertEquals("PADARIA DO JOÃO", result?.merchant)
+    }
+
+    @Test
+    fun merchantStopsBeforeAmount() {
+        val result = PurchaseParser.parse("Compra no SUPERMERCADO X R$ 1.250,00 aprovada")
+        assertEquals(125000L, result?.amountCents)
+        assertEquals("SUPERMERCADO X", result?.merchant)
+    }
+
+    @Test
+    fun merchantStopsAtPeriod() {
+        val result = PurchaseParser.parse("Compra em iFood Restaurante. R$ 87,99")
+        assertEquals("iFood Restaurante", result?.merchant)
+    }
 }

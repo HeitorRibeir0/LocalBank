@@ -397,6 +397,7 @@ private fun GoalFormDialog(
                 val deadline = if (deadlineText.isNotBlank())
                     try { sdf.parse(deadlineText)?.time } catch (_: Exception) { null }
                 else null
+                if (deadlineText.isNotBlank() && deadline == null) { showError = true; return@TextButton }
                 onConfirm(name.trim(), amount, selectedColor, deadline)
             }) {
                 Text("Salvar", color = appColors.primary, fontWeight = FontWeight.SemiBold)

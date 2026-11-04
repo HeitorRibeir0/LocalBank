@@ -1,13 +1,19 @@
 package com.localbank.finance.ui.viewmodel
 
+import com.localbank.finance.data.database.TransactionDao
 import com.localbank.finance.data.model.Category
 import com.localbank.finance.data.model.Transaction
 import com.localbank.finance.data.model.TransactionType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import com.localbank.finance.util.DateRange
+import com.localbank.finance.util.DateRanges
 import org.junit.Test
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class BuildReportTest {
 
@@ -35,12 +41,32 @@ class BuildReportTest {
         tx(999.0, TransactionType.EXPENSE, "food", at(2026, Calendar.JUNE, 30))
     )
 
+    // Agrega como as consultas monthlyTotals/expenseByCategory do TransactionDao
+    private fun byCategory(txs: List<Transaction>, range: DateRange) = txs
+        .filter { it.type == TransactionType.EXPENSE && it.date in range }
+        .groupBy { it.categoryId }
+        .map { (cat, list) -> TransactionDao.CategoryTotal(cat, list.sumOf { it.amount }) }
+
+    private fun report(txs: List<Transaction>, cal: Calendar): ReportUiState {
+        val ym = SimpleDateFormat("yyyy-MM", Locale.US)
+        val monthly = txs
+            .groupBy { ym.format(Date(it.date)) to it.type.name }
+            .map { (key, list) -> TransactionDao.MonthlyTotal(key.first, key.second, list.sumOf { it.amount }) }
+        return buildReport(
+            monthlyTotals = monthly,
+            monthExpensesByCategory = byCategory(txs, DateRanges.month(cal)),
+            semesterExpensesByCategory = byCategory(txs, DateRanges.semester(cal)),
+            categories = categories,
+            selectedCal = cal
+        )
+    }
+
     // Dia 31 de propósito: é o caso que quebrava o cálculo do semestre
     private val selected = Calendar.getInstance().apply { clear(); set(2026, Calendar.AUGUST, 31, 10, 0, 0) }
 
     @Test
     fun `gastos por categoria do mes selecionado`() {
-        val report = buildReport(transactions, categories, selected)
+        val report = report(transactions, selected)
 
         assertEquals(1600.0, report.totalExpenseThisMonth, 0.001)
         assertEquals(listOf("Moradia", "Alimentação", "Sem categoria"), report.categoryExpenses.map { it.categoryName })
@@ -49,7 +75,7 @@ class BuildReportTest {
 
     @Test
     fun `comparativo termina no mes selecionado`() {
-        val months = buildReport(transactions, categories, selected).monthlyComparison
+        val months = report(transactions, selected).monthlyComparison
 
         assertEquals(6, months.size)
         assertEquals(5000.0, months.last().income, 0.001)
@@ -60,7 +86,7 @@ class BuildReportTest {
 
     @Test
     fun `semestre considera apenas julho a dezembro`() {
-        val semester = buildReport(transactions, categories, selected).semesterReport
+        val semester = report(transactions, selected).semesterReport
 
         assertNotNull(semester)
         semester!!
@@ -74,7 +100,7 @@ class BuildReportTest {
 
     @Test
     fun `sem transacoes nao gera panorama`() {
-        val report = buildReport(emptyList(), categories, selected)
+        val report = report(emptyList(), selected)
 
         assertNull(report.semesterReport)
         assertEquals(0.0, report.totalExpenseThisMonth, 0.0)

@@ -9,11 +9,14 @@ import com.localbank.finance.ui.util.normalizeCategoryName
 import com.localbank.finance.ui.util.PtBr
 import com.localbank.finance.util.roundCents
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.localbank.finance.util.DateRange
 import com.localbank.finance.util.DateRanges
 import java.util.UUID
 
@@ -22,17 +25,13 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
     private val _budgetAlert = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val budgetAlert: SharedFlow<String> = _budgetAlert
 
-    // ── Transações por período (otimizado para ExpensesScreen) ──
-    fun getTransactionsByPeriod(from: Long, to: Long): StateFlow<List<Transaction>> = repository
-        .getTransactionsByPeriod(from, to)
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Lazily,
-            initialValue = emptyList()
-        )
+    // Mês exibido na tela de Despesas: só ele é lido do banco
+    private val period = MutableStateFlow(DateRanges.month())
 
-    val transactions: StateFlow<List<Transaction>> = repository
-        .getAllTransactions()
+    fun setPeriod(range: DateRange) { period.value = range }
+
+    val transactions: StateFlow<List<Transaction>> = period
+        .flatMapLatest { (from, to) -> repository.getTransactionsByPeriod(from, to) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),

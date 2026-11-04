@@ -38,7 +38,7 @@ class BuildDashboardTest {
 
     @Test
     fun `saldo total soma as contas e sobra desconta contas do mes`() {
-        val state = buildDashboard(emptyList(), scheduled, emptyList(), accounts, now)
+        val state = buildDashboard(emptyList(), scheduled, emptyList(), accounts, emptyList(), now)
 
         assertEquals(15, state.daysLeft)
         assertEquals(3500.0, state.accountsBalance, 0.001)
@@ -48,7 +48,7 @@ class BuildDashboardTest {
 
     @Test
     fun `regua marca dias com conta paga e pendente`() {
-        val marks = buildDashboard(emptyList(), scheduled, emptyList(), accounts, now).billMarks
+        val marks = buildDashboard(emptyList(), scheduled, emptyList(), accounts, emptyList(), now).billMarks
 
         assertEquals(31, marks.size)
         assertEquals(BillMark.DUE, marks[17])     // dia 18
@@ -59,7 +59,7 @@ class BuildDashboardTest {
 
     @Test
     fun `vence logo separa urgentes`() {
-        val state = buildDashboard(emptyList(), scheduled, emptyList(), accounts, now)
+        val state = buildDashboard(emptyList(), scheduled, emptyList(), accounts, emptyList(), now)
 
         assertEquals(listOf("atrasada", "aluguel", "internet"), state.urgentExpenses.map { it.id })
         assertEquals(listOf("novembro"), state.upcomingExpenses.map { it.id })
@@ -68,7 +68,7 @@ class BuildDashboardTest {
     @Test
     fun `saldo menor que as contas deixa a sobra negativa`() {
         val poor = listOf(Account(id = "a", name = "Carteira", type = AccountType.WALLET, balance = 100.0))
-        val state = buildDashboard(emptyList(), scheduled, emptyList(), poor, now)
+        val state = buildDashboard(emptyList(), scheduled, emptyList(), poor, emptyList(), now)
 
         assertEquals(100.0, state.accountsBalance, 0.001)
         assertTrue(state.freeAfterBills < 0)
@@ -84,7 +84,7 @@ class BuildDashboardTest {
             Transaction(accountId = "a", categoryId = null, amount = 700.0, type = TransactionType.EXPENSE,
                 description = "", date = at(Calendar.SEPTEMBER, 28))
         )
-        val state = buildDashboard(txs, emptyList(), emptyList(), accounts, now)
+        val state = buildDashboard(txs, emptyList(), emptyList(), accounts, emptyList(), now)
 
         assertEquals(5000.0, state.totalIncome, 0.001)
         assertEquals(300.0, state.totalExpense, 0.001)

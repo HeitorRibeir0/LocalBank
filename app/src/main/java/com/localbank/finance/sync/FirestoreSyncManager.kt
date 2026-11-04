@@ -19,6 +19,7 @@ import com.localbank.finance.data.model.SavingsGoal
 import com.localbank.finance.data.model.ScheduledExpense
 import com.localbank.finance.data.model.TransactionType
 import com.localbank.finance.data.model.Transaction as AppTransaction
+import com.localbank.finance.util.roundCents
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -477,7 +478,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
                 id = doc.getString("id") ?: doc.id,
                 name = doc.getString("name") ?: return null,
                 type = AccountType.valueOf(doc.getString("type") ?: return null),
-                balance = doc.getDouble("balance") ?: 0.0,
+                balance = (doc.getDouble("balance") ?: 0.0).roundCents(),
                 currency = doc.getString("currency") ?: "BRL",
                 createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
             )
@@ -502,7 +503,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
                 id = doc.getString("id") ?: doc.id,
                 accountId = doc.getString("accountId") ?: return null,
                 categoryId = doc.getString("categoryId"),
-                amount = doc.getDouble("amount") ?: return null,
+                amount = doc.getDouble("amount")?.roundCents() ?: return null,
                 type = TransactionType.valueOf(doc.getString("type") ?: return null),
                 description = doc.getString("description") ?: "",
                 date = doc.getLong("date") ?: return null,
@@ -518,7 +519,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
                 id = doc.getString("id") ?: doc.id,
                 accountId = doc.getString("accountId") ?: return null,
                 categoryId = doc.getString("categoryId"),
-                amount = doc.getDouble("amount") ?: return null,
+                amount = doc.getDouble("amount")?.roundCents() ?: return null,
                 description = doc.getString("description") ?: "",
                 dueDate = doc.getLong("dueDate") ?: return null,
                 isRecurring = doc.getBoolean("isRecurring") ?: false,
@@ -534,13 +535,13 @@ class FirestoreSyncManager(private val database: AppDatabase) {
 
     private fun mapToGoal(doc: DocumentSnapshot): SavingsGoal? {
         return try {
-            val target = doc.getDouble("targetAmount") ?: return null
+            val target = doc.getDouble("targetAmount")?.roundCents() ?: return null
             SavingsGoal(
                 id = doc.getString("id") ?: doc.id,
                 name = doc.getString("name") ?: return null,
                 targetAmount = target,
                 // Incrementos simultâneos podem passar do alvo no servidor
-                savedAmount = (doc.getDouble("savedAmount") ?: 0.0).coerceIn(0.0, target),
+                savedAmount = (doc.getDouble("savedAmount") ?: 0.0).roundCents().coerceIn(0.0, target),
                 colorHex = doc.getString("colorHex") ?: "#4CAF50",
                 deadline = doc.getLong("deadline"),
                 createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
@@ -555,7 +556,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
                 id = doc.getString("id") ?: doc.id,
                 categoryId = doc.getString("categoryId") ?: return null,
                 monthYear = doc.getString("monthYear") ?: return null,
-                limitAmount = doc.getDouble("limitAmount") ?: return null,
+                limitAmount = doc.getDouble("limitAmount")?.roundCents() ?: return null,
                 createdBy = doc.getString("createdBy"),
                 createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
             )

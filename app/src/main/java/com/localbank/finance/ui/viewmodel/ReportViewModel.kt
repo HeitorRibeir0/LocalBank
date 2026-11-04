@@ -2,12 +2,10 @@ package com.localbank.finance.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.localbank.finance.data.database.TransactionDao
 import com.localbank.finance.data.model.Category
 import com.localbank.finance.data.model.displayName
-import com.localbank.finance.data.model.Transaction
-import com.localbank.finance.data.model.TransactionType
 import com.localbank.finance.data.repository.FinanceRepository
-import com.localbank.finance.util.DateRange
 import com.localbank.finance.util.DateRanges
 import com.localbank.finance.util.roundCents
 import kotlinx.coroutines.Dispatchers
@@ -63,17 +61,20 @@ class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
         DateRanges.isSameMonth(_selectedMonth.value, Calendar.getInstance())
 
     val uiState: StateFlow<ReportUiState> = _selectedMonth.flatMapLatest { selectedCal ->
-        val sixMonthsAgo = Calendar.getInstance().apply { add(Calendar.MONTH, -6) }
         val semesterRange = DateRanges.semester(selectedCal)
         val monthRange = DateRanges.month(selectedCal)
+        val fiveMonthsBefore = (selectedCal.clone() as Calendar).apply { add(Calendar.MONTH, -5) }
+        // Cobre o comparativo (6 meses até o selecionado) e o semestre do mês selecionado
+        val from = minOf(DateRanges.month(fiveMonthsBefore).from, semesterRange.from)
+        val to = maxOf(monthRange.to, semesterRange.to)
 
         combine(
-            repository.getMonthlyTotals(sixMonthsAgo.timeInMillis, System.currentTimeMillis()),
+            repository.getMonthlyTotals(from, to),
             repository.getExpenseByCategory(monthRange.from, monthRange.to),
             repository.getExpenseByCategory(semesterRange.from, semesterRange.to),
             repository.getAllCategories()
         ) { monthlyTotals, monthExpenses, semesterExpenses, categories ->
-            buildReportFromAggregates(
+            buildReport(
                 monthlyTotals = monthlyTotals,
                 monthExpensesByCategory = monthExpenses,
                 semesterExpensesByCategory = semesterExpenses,
@@ -88,11 +89,11 @@ class ReportViewModel(private val repository: FinanceRepository) : ViewModel() {
     )
 }
 
-/** Cálculo puro do relatório usando dados agregados (otimizado). */
-internal fun buildReportFromAggregates(
-    monthlyTotals: List<com.localbank.finance.data.database.TransactionDao.MonthlyTotal>,
-    monthExpensesByCategory: List<com.localbank.finance.data.database.TransactionDao.CategoryTotal>,
-    semesterExpensesByCategory: List<com.localbank.finance.data.database.TransactionDao.CategoryTotal>,
+/** Cálculo puro do relatório a partir dos totais agregados no SQL — separado para poder ser testado. */
+internal fun buildReport(
+    monthlyTotals: List<TransactionDao.MonthlyTotal>,
+    monthExpensesByCategory: List<TransactionDao.CategoryTotal>,
+    semesterExpensesByCategory: List<TransactionDao.CategoryTotal>,
     categories: List<Category>,
     selectedCal: Calendar
 ): ReportUiState {
@@ -111,15 +112,15 @@ internal fun buildReportFromAggregates(
     }
 
     // ── Gastos por categoria no mês selecionado ──
-    val totalExpense = monthExpensesByCategory.sumOf { it.total ?: 0.0 }.roundCents()
+    val totalExpense = monthExpensesByCategory.sumOf { it.total }.roundCents()
     val categoryExpenses = monthExpensesByCategory
         .map { (catId, total) ->
             val category = categoriesById[catId]
             CategoryExpense(
                 categoryName = category?.displayName ?: "Sem categoria",
                 colorHex     = category?.colorHex ?: "#9E9E9E",
-                totalAmount  = total ?: 0.0,
-                percentage   = if (totalExpense > 0) ((total ?: 0.0) / totalExpense * 100).toFloat() else 0f
+                totalAmount  = total,
+                percentage   = if (totalExpense > 0) (total / totalExpense * 100).toFloat() else 0f
             )
         }
         .sortedByDescending { it.totalAmount }
@@ -163,107 +164,7 @@ internal fun buildReportFromAggregates(
     val bestMonth = activeMonths.minByOrNull { it.third }?.first ?: "-"
     val worstMonth = activeMonths.maxByOrNull { it.third }?.first ?: "-"
 
-    val topCategoryId = semesterExpensesByCategory.maxByOrNull { it.total ?: 0.0 }?.categoryId
-    val topCategory = topCategoryId?.let { categoriesById[it] }
-    val savingsRate = if (semesterIncome > 0)
-        ((semesterIncome - semesterExpense) / semesterIncome * 100).toFloat().coerceIn(0f, 100f)
-    else 0f
-
-    val semesterReport = if (semesterExpense > 0 || semesterIncome > 0) SemesterReport(
-        label            = semesterLabel,
-        totalIncome      = semesterIncome,
-        totalExpense     = semesterExpense,
-        balance          = semesterIncome - semesterExpense,
-        bestMonth        = bestMonth,
-        worstMonth       = worstMonth,
-        topCategory      = topCategory?.displayName ?: "Sem dados",
-        topCategoryColor = topCategory?.colorHex ?: "#9E9E9E",
-        savingsRate      = savingsRate
-    ) else null
-
-    return ReportUiState(
-        categoryExpenses      = categoryExpenses,
-        monthlyComparison     = monthlyComparison,
-        totalExpenseThisMonth = totalExpense,
-        semesterReport        = semesterReport
-    )
-}
-
-/** Cálculo puro do relatório — separado do ViewModel para poder ser testado. */
-internal fun buildReport(
-    transactions: List<Transaction>,
-    categories: List<Category>,
-    selectedCal: Calendar
-): ReportUiState {
-    val locale = Locale.forLanguageTag("pt-BR")
-    val categoriesById = categories.associateBy { it.id }
-
-    // ── Uma passada: totais de entrada e saída por mês ──
-    val incomeByMonth = HashMap<Int, Double>()
-    val expenseByMonth = HashMap<Int, Double>()
-    val cursor = Calendar.getInstance()
-    transactions.forEach { tx ->
-        cursor.timeInMillis = tx.date
-        val totals = if (tx.type == TransactionType.INCOME) incomeByMonth else expenseByMonth
-        totals.merge(DateRanges.monthIndex(cursor), tx.amount) { a, b -> a + b }
-    }
-    fun income(idx: Int) = incomeByMonth[idx] ?: 0.0
-    fun expense(idx: Int) = expenseByMonth[idx] ?: 0.0
-
-    fun expensesByCategory(range: DateRange) = transactions
-        .filter { it.type == TransactionType.EXPENSE && it.date in range }
-        .groupBy { it.categoryId }
-        .mapValues { (_, txns) -> txns.sumOf { it.amount } }
-
-    val selectedIdx = DateRanges.monthIndex(selectedCal)
-
-    // ── Gastos por categoria no mês selecionado ──
-    val monthByCategory = expensesByCategory(DateRanges.month(selectedCal))
-    val totalExpense = monthByCategory.values.sum()
-    val categoryExpenses = monthByCategory
-        .map { (catId, total) ->
-            val category = categoriesById[catId]
-            CategoryExpense(
-                categoryName = category?.displayName ?: "Sem categoria",
-                colorHex     = category?.colorHex ?: "#9E9E9E",
-                totalAmount  = total,
-                percentage   = if (totalExpense > 0) (total / totalExpense * 100).toFloat() else 0f
-            )
-        }
-        .sortedByDescending { it.totalAmount }
-
-    // ── Comparativo: 6 meses até o mês selecionado ──
-    val sdf = SimpleDateFormat("MMM/yy", locale)
-    val monthlyComparison = (5 downTo 0).map { monthsAgo ->
-        val c = (selectedCal.clone() as Calendar).apply { add(Calendar.MONTH, -monthsAgo) }
-        val idx = selectedIdx - monthsAgo
-        MonthlyComparison(sdf.format(c.time).replaceFirstChar { it.uppercase() }, income(idx), expense(idx))
-    }
-
-    // ── Panorama semestral (baseado no mês selecionado) ──
-    val selectedYear = selectedCal.get(Calendar.YEAR)
-    val isFirstSemester = selectedCal.get(Calendar.MONTH) < 6
-    val semesterStartMonth = if (isFirstSemester) 0 else 6
-    val semesterLabel = "${if (isFirstSemester) "1º" else "2º"} Semestre $selectedYear"
-    val monthLabelSdf = SimpleDateFormat("MMM", locale)
-
-    val semesterMonths = (0 until 6).map { offset ->
-        val c = (selectedCal.clone() as Calendar).apply {
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.MONTH, semesterStartMonth + offset)
-        }
-        val idx = DateRanges.monthIndex(c)
-        Triple(monthLabelSdf.format(c.time).replaceFirstChar { it.uppercase() }, income(idx), expense(idx))
-    }
-
-    val semesterIncome  = semesterMonths.sumOf { it.second }
-    val semesterExpense = semesterMonths.sumOf { it.third }
-
-    val activeMonths = semesterMonths.filter { it.third > 0 }
-    val bestMonth  = activeMonths.minByOrNull { it.third }?.first ?: "-"
-    val worstMonth = activeMonths.maxByOrNull { it.third }?.first ?: "-"
-
-    val topCategoryId = expensesByCategory(DateRanges.semester(selectedCal)).maxByOrNull { it.value }?.key
+    val topCategoryId = semesterExpensesByCategory.maxByOrNull { it.total }?.categoryId
     val topCategory = topCategoryId?.let { categoriesById[it] }
     val savingsRate = if (semesterIncome > 0)
         ((semesterIncome - semesterExpense) / semesterIncome * 100).toFloat().coerceIn(0f, 100f)

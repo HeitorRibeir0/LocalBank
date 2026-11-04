@@ -74,11 +74,12 @@ class DashboardViewModel(private val repository: FinanceRepository) : ViewModel(
         monthPeriod.flatMapLatest { (from, to) ->
             repository.getTransactionsByPeriod(from, to)
         },
+        repository.getRecentTransactions(5),
         repository.getAllScheduled(),
         repository.getAllCategories(),
         repository.getAllAccounts()
-    ) { transactions, scheduled, categories, accounts ->
-        buildDashboard(transactions, scheduled, categories, accounts, Calendar.getInstance())
+    ) { transactions, recent, scheduled, categories, accounts ->
+        buildDashboard(transactions, scheduled, categories, accounts, recent, Calendar.getInstance())
     }.flowOn(Dispatchers.Default).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -92,6 +93,7 @@ internal fun buildDashboard(
     scheduled: List<ScheduledExpense>,
     categories: List<Category>,
     accounts: List<Account>,
+    recent: List<Transaction>,
     now: Calendar
 ): DashboardUiState {
     val nowMs = now.timeInMillis
@@ -99,8 +101,13 @@ internal fun buildDashboard(
     val monthTransactions = transactions.filter { it.date in month }
     val categoriesById = categories.associateBy { it.id }
 
-    val income  = monthTransactions.filter { it.type == TransactionType.INCOME  }.sumOf { it.amount }.roundCents()
-    val expense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }.roundCents()
+    var incomeSum = 0.0
+    var expenseSum = 0.0
+    for (tx in monthTransactions) {
+        if (tx.type == TransactionType.INCOME) incomeSum += tx.amount else expenseSum += tx.amount
+    }
+    val income = incomeSum.roundCents()
+    val expense = expenseSum.roundCents()
 
     // ── Ritmo do mês ──
     val daysInMonth = now.getActualMaximum(Calendar.DAY_OF_MONTH)
@@ -152,7 +159,7 @@ internal fun buildDashboard(
         categoryExpenses   = categoryExpenses,
         urgentExpenses     = urgent,
         upcomingExpenses   = upcoming,
-        recentTransactions = transactions.take(5),
+        recentTransactions = recent,
         categoryNames      = categories.associate { it.id to it.displayName }
     )
 }
