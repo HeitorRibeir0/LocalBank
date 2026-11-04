@@ -71,6 +71,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
+            .safeDrawingPadding()
             .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
