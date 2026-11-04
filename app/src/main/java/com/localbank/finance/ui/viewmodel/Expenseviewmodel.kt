@@ -7,6 +7,7 @@ import com.localbank.finance.data.model.*
 import com.localbank.finance.data.repository.FinanceRepository
 import com.localbank.finance.ui.util.normalizeCategoryName
 import com.localbank.finance.ui.util.PtBr
+import com.localbank.finance.util.roundCents
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -76,7 +77,7 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
                 Transaction(
                     accountId   = accountId,
                     categoryId  = categoryId,
-                    amount      = amount,
+                    amount      = amount.roundCents(),
                     type        = type,
                     description = description,
                     date        = date,
@@ -134,7 +135,7 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
                 ScheduledExpense(
                     accountId      = accountId,
                     categoryId     = categoryId,
-                    amount         = amount,
+                    amount         = amount.roundCents(),
                     description    = description,
                     dueDate        = dueDate,
                     isRecurring    = isRecurring,

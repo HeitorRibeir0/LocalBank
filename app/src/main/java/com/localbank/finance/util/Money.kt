@@ -3,9 +3,15 @@ package com.localbank.finance.util
 import kotlin.math.roundToLong
 
 /**
- * Arredonda para centavos. Aplicado em todo valor que entra no app
- * (digitado, recebido do Firestore, depositado) para que o erro de ponto
- * flutuante não se acumule em saldos e somas.
+ * Arredonda para centavos para evitar erro de ponto flutuante em somas.
+ *
+ * DEVE SER CHAMADO em:
+ * - addTransaction() antes de gravar
+ * - addScheduledExpense() antes de gravar
+ * - Em mapTo* do FirestoreSyncManager ao receber do Firestore
+ * - Em buildDashboard/buildReport ao calcular totais
+ *
+ * TODO (1.3): Migrar para Long em centavos para eliminar Double completamente.
  */
 fun Double.roundCents(): Double = (this * 100.0).roundToLong() / 100.0
 

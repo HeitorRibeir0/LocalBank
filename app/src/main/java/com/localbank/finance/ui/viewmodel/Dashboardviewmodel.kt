@@ -11,6 +11,7 @@ import com.localbank.finance.data.model.displayName
 import com.localbank.finance.data.repository.FinanceRepository
 import com.localbank.finance.util.DateRanges
 import com.localbank.finance.util.DateRange
+import com.localbank.finance.util.roundCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import java.util.Calendar
@@ -99,8 +100,8 @@ internal fun buildDashboard(
     val monthTransactions = transactions.filter { it.date in month }
     val categoriesById = categories.associateBy { it.id }
 
-    val income  = monthTransactions.filter { it.type == TransactionType.INCOME  }.sumOf { it.amount }
-    val expense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    val income  = monthTransactions.filter { it.type == TransactionType.INCOME  }.sumOf { it.amount }.roundCents()
+    val expense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }.roundCents()
 
     // ── Ritmo do mês ──
     val daysInMonth = now.getActualMaximum(Calendar.DAY_OF_MONTH)

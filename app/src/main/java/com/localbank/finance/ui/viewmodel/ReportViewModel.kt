@@ -9,6 +9,7 @@ import com.localbank.finance.data.model.TransactionType
 import com.localbank.finance.data.repository.FinanceRepository
 import com.localbank.finance.util.DateRange
 import com.localbank.finance.util.DateRanges
+import com.localbank.finance.util.roundCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import java.text.SimpleDateFormat
@@ -110,7 +111,7 @@ internal fun buildReportFromAggregates(
     }
 
     // ── Gastos por categoria no mês selecionado ──
-    val totalExpense = monthExpensesByCategory.sumOf { it.total ?: 0.0 }
+    val totalExpense = monthExpensesByCategory.sumOf { it.total ?: 0.0 }.roundCents()
     val categoryExpenses = monthExpensesByCategory
         .map { (catId, total) ->
             val category = categoriesById[catId]
@@ -155,8 +156,8 @@ internal fun buildReportFromAggregates(
         )
     }
 
-    val semesterIncome = semesterMonths.sumOf { it.second }
-    val semesterExpense = semesterMonths.sumOf { it.third }
+    val semesterIncome = semesterMonths.sumOf { it.second }.roundCents()
+    val semesterExpense = semesterMonths.sumOf { it.third }.roundCents()
 
     val activeMonths = semesterMonths.filter { it.third > 0 }
     val bestMonth = activeMonths.minByOrNull { it.third }?.first ?: "-"
