@@ -60,6 +60,7 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
         description: String,
         date: Long = System.currentTimeMillis()
     ) {
+        require(amount > 0) { "Valor deve ser positivo" }
         viewModelScope.launch {
             repository.insertTransaction(
                 Transaction(
@@ -117,6 +118,7 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
         isRecurring: Boolean = false,
         recurrenceRule: RecurrenceRule? = null
     ) {
+        require(amount > 0) { "Valor deve ser positivo" }
         viewModelScope.launch {
             repository.insertScheduled(
                 ScheduledExpense(
