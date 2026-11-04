@@ -102,10 +102,13 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
             try {
                 val info = com.localbank.finance.update.UpdateChecker.check(BuildConfig.VERSION_CODE)
+                android.util.Log.d("MainActivity", "Update check: hasUpdate=${info.hasUpdate}, url=${info.downloadUrl}")
                 if (info.hasUpdate && info.downloadUrl.isNotBlank()) {
                     updateInfo = info
                 }
-            } catch (_: Exception) { /* sem internet ou config não configurado */ }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Update check failed: ${e.message}", e)
+            }
         }
 
         updateInfo?.let { info ->

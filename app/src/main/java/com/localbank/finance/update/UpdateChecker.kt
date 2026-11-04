@@ -1,5 +1,6 @@
 package com.localbank.finance.update
 
+import android.util.Log
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 import kotlinx.coroutines.tasks.await
@@ -17,32 +18,30 @@ object UpdateChecker {
     private const val KEY_DOWNLOAD_URL = "apk_download_url"  // Mesmo nome usado no script release.yml
 
     suspend fun check(currentVersionCode: Int): UpdateInfo {
-        val config = FirebaseRemoteConfig.getInstance()
+        return try {
+            val config = FirebaseRemoteConfig.getInstance()
 
-        val settings = FirebaseRemoteConfigSettings.Builder()
-            .setMinimumFetchIntervalInSeconds(600) // busca no máximo a cada 10 minutos
-            .build()
-        config.setConfigSettingsAsync(settings).await()
+            val settings = FirebaseRemoteConfigSettings.Builder()
+                .setMinimumFetchIntervalInSeconds(0) // busca sempre (development)
+                .build()
+            config.setConfigSettingsAsync(settings).await()
 
-        // Valores padrão caso o Remote Config não esteja configurado ainda
-        config.setDefaultsAsync(
-            mapOf(
-                KEY_VERSION_CODE to currentVersionCode.toLong(),
-                KEY_VERSION_NAME to "1.0",
-                KEY_DOWNLOAD_URL to ""
+            config.fetchAndActivate().await()
+
+            val latestCode = config.getLong(KEY_VERSION_CODE).toInt()
+            val latestName = config.getString(KEY_VERSION_NAME)
+            val downloadUrl = config.getString(KEY_DOWNLOAD_URL)
+
+            Log.d("UpdateChecker", "Current: $currentVersionCode, Latest: $latestCode, URL: $downloadUrl")
+
+            UpdateInfo(
+                hasUpdate = latestCode > currentVersionCode,
+                latestVersion = latestName,
+                downloadUrl = downloadUrl
             )
-        ).await()
-
-        config.fetchAndActivate().await()
-
-        val latestCode = config.getLong(KEY_VERSION_CODE).toInt()
-        val latestName = config.getString(KEY_VERSION_NAME)
-        val downloadUrl = config.getString(KEY_DOWNLOAD_URL)
-
-        return UpdateInfo(
-            hasUpdate = latestCode > currentVersionCode,
-            latestVersion = latestName,
-            downloadUrl = downloadUrl
-        )
+        } catch (e: Exception) {
+            Log.e("UpdateChecker", "Erro ao verificar atualização: ${e.message}", e)
+            UpdateInfo(hasUpdate = false, latestVersion = "", downloadUrl = "")
+        }
     }
 }
