@@ -10,7 +10,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.localbank.finance.data.model.*
-import net.sqlcipher.database.SupportFactory
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import java.util.UUID
 
 @Database(
@@ -67,8 +67,9 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
+                System.loadLibrary("sqlcipher")
                 val passphrase = getOrCreatePassphrase(context)
-                val factory = SupportFactory(passphrase)
+                val factory = SupportOpenHelperFactory(passphrase)
 
                 Room.databaseBuilder(
                     context.applicationContext,
