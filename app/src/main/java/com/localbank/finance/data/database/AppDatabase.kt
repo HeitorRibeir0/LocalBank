@@ -10,6 +10,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.localbank.finance.data.model.*
+import com.localbank.finance.ui.util.normalizeCategoryName
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import java.util.UUID
 
@@ -155,11 +156,12 @@ abstract class AppDatabase : RoomDatabase() {
                 db: SupportSQLiteDatabase,
                 name: String, icon: String, colorHex: String, type: String
             ) {
-                val categoryId = UUID.nameUUIDFromBytes("$type:${name.lowercase()}".toByteArray()).toString()
+                val canonical = normalizeCategoryName(name)
+                val categoryId = UUID.nameUUIDFromBytes("$type:${canonical.lowercase()}".toByteArray()).toString()
                 db.execSQL(
                     """INSERT INTO categories (id, name, icon, colorHex, type)
                        VALUES (?, ?, ?, ?, ?)""",
-                    arrayOf(categoryId, name, icon, colorHex, type)
+                    arrayOf(categoryId, canonical, icon, colorHex, type)
                 )
             }
         }

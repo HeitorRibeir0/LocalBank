@@ -50,11 +50,20 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
 
     val appColors = LocalAppColors.current
     var showDeleteTx by remember { mutableStateOf<Transaction?>(null) }
+    var showDeleteScheduled by remember { mutableStateOf<ScheduledExpense?>(null) }
     var showEditTx by remember { mutableStateOf<Transaction?>(null) }
     var showEditScheduled by remember { mutableStateOf<ScheduledExpense?>(null) }
 
     // Seletor de mês
-    val selectedCal = remember { mutableStateOf(Calendar.getInstance()) }
+    val selectedCal = rememberSaveable(saver = run {
+        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        Saver(
+            save = { formatter.format(it.value.time) },
+            restore = { dateStr -> mutableStateOf(Calendar.getInstance().apply {
+                time = formatter.parse(dateStr) ?: Calendar.getInstance().time
+            }) }
+        )
+    }) { mutableStateOf(Calendar.getInstance()) }
     val monthSdf = rememberDateFormat("MMMM yyyy")
     val isCurrentMonth = remember(selectedCal.value) {
         DateRanges.isSameMonth(selectedCal.value, Calendar.getInstance())
@@ -150,7 +159,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                         ScheduledCard(
                             expense = expense, currency = currency, sdf = sdf,
                             onPay = { viewModel.payScheduledExpense(expense) },
-                            onDelete = { viewModel.deleteScheduledExpense(expense) },
+                            onDelete = { showDeleteScheduled = expense },
                             onEdit = { showEditScheduled = expense }
                         )
                     }
@@ -166,7 +175,7 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                         ScheduledCard(
                             expense = expense, currency = currency, sdf = sdf,
                             onPay = {},
-                            onDelete = { viewModel.deleteScheduledExpense(expense) },
+                            onDelete = { showDeleteScheduled = expense },
                             onEdit = { showEditScheduled = expense }
                         )
                     }
@@ -204,6 +213,21 @@ fun ExpensesScreen(viewModel: ExpenseViewModel) {
                 }
             },
             dismissButton = { TextButton(onClick = { showDeleteTx = null }) { Text("Cancelar", color = OnDarkTextSecondary) } }
+        )
+    }
+
+    showDeleteScheduled?.let { expense ->
+        AlertDialog(
+            onDismissRequest = { showDeleteScheduled = null },
+            containerColor = DarkCard,
+            title = { Text("Excluir \"${expense.description}\"?", color = OnDarkText) },
+            text = { Text("Esta conta será removida para todos do lar.\nIsso não pode ser desfeito.", color = OnDarkTextSecondary) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteScheduledExpense(expense); showDeleteScheduled = null }) {
+                    Text("Excluir", color = ExpenseRed)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteScheduled = null }) { Text("Cancelar", color = OnDarkTextSecondary) } }
         )
     }
 
@@ -360,8 +384,8 @@ fun ScheduledCard(
                 )
                 Spacer(Modifier.width(4.dp))
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Default.Delete, "Deletar", modifier = Modifier.size(14.dp),
+            IconButton(onClick = onDelete, modifier = Modifier.minimumInteractiveComponentSize()) {
+                Icon(Icons.Default.Delete, "Deletar", modifier = Modifier.size(24.dp),
                     tint = c.textSecondary.copy(alpha = 0.5f))
             }
         }

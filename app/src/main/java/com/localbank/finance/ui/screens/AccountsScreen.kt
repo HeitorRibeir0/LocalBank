@@ -179,8 +179,8 @@ fun AccountCard(account: Account, currency: NumberFormat, onDelete: () -> Unit) 
                     fontWeight = FontWeight.Bold,
                     color = if (account.balance >= 0) IncomeGreen else ExpenseRed
                 )
-                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Delete, "Excluir", modifier = Modifier.size(16.dp),
+                IconButton(onClick = onDelete, modifier = Modifier.minimumInteractiveComponentSize()) {
+                    Icon(Icons.Default.Delete, "Excluir", modifier = Modifier.size(20.dp),
                         tint = OnDarkTextSecondary.copy(alpha = 0.6f))
                 }
             }
