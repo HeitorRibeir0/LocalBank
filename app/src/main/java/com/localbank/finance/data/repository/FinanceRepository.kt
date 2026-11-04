@@ -20,6 +20,7 @@ class FinanceRepository(
     private val scheduledExpenseDao: ScheduledExpenseDao,
     private val budgetDao: BudgetDao,
     private val savingsGoalDao: SavingsGoalDao,
+    private val pendingCaptureDao: PendingCaptureDao? = null,
     private val syncManager: FirestoreSyncManager? = null,
     private val householdId: String? = null,
     private val database: AppDatabase? = null
@@ -111,6 +112,46 @@ class FinanceRepository(
         transactionDao.delete(transaction)
         syncPush { it.deleteRemote(householdId!!, "transactions", transaction.id) }
         refreshBalances(transaction.accountId)
+    }
+
+    suspend fun confirmCapture(
+        capture: PendingCapture,
+        accountId: String,
+        categoryId: String?,
+        description: String
+    ) {
+        val db = database
+        val tx: Transaction
+        if (db != null) {
+            tx = db.withTransaction {
+                val transaction = Transaction(
+                    accountId = accountId,
+                    categoryId = categoryId,
+                    amount = capture.amount,
+                    type = TransactionType.EXPENSE,
+                    description = description,
+                    date = capture.detectedAt
+                )
+                transactionDao.insert(transaction)
+                accountDao.recalculateBalance(accountId)
+                pendingCaptureDao?.delete(capture.id)
+                transaction
+            }
+        } else {
+            tx = Transaction(
+                accountId = accountId,
+                categoryId = categoryId,
+                amount = capture.amount,
+                type = TransactionType.EXPENSE,
+                description = description,
+                date = capture.detectedAt
+            )
+            transactionDao.insert(tx)
+            accountDao.recalculateBalance(accountId)
+            pendingCaptureDao?.delete(capture.id)
+        }
+        // Só faz push após sucesso local
+        syncPush { it.pushTransaction(householdId!!, tx) }
     }
 
     /** Recalcula o saldo das contas afetadas e publica o valor atualizado. */

@@ -150,6 +150,17 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
         }
     }
 
+    fun confirmCapture(
+        capture: com.localbank.finance.data.model.PendingCapture,
+        accountId: String,
+        categoryId: String?,
+        description: String
+    ) {
+        viewModelScope.launch {
+            repository.confirmCapture(capture, accountId, categoryId, description)
+        }
+    }
+
     // ── Categorias ──
 
     fun addCategory(name: String, colorHex: String, type: TransactionType) {

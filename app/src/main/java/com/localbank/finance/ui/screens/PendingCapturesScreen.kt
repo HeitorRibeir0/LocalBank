@@ -150,16 +150,7 @@ fun PendingCapturesScreen(
                     accounts = accounts,
                     expenseCategories = expenseCategories,
                     onConfirm = { accountId, categoryId, description ->
-                        // Lança como saída normal: passa pelo mesmo fluxo de sync e de alerta de orçamento
-                        viewModel.addTransaction(
-                            accountId = accountId,
-                            categoryId = categoryId,
-                            amount = capture.amount,
-                            type = TransactionType.EXPENSE,
-                            description = description,
-                            date = capture.detectedAt
-                        )
-                        scope.launch(Dispatchers.IO) { dao.delete(capture.id) }
+                        viewModel.confirmCapture(capture, accountId, categoryId, description)
                     },
                     onDiscard = {
                         scope.launch(Dispatchers.IO) { dao.delete(capture.id) }
@@ -185,6 +176,7 @@ private fun CaptureCard(
     var description by remember(capture.id) { mutableStateOf(capture.merchant) }
     var account by remember(capture.id, accounts) { mutableStateOf(accounts.firstOrNull()) }
     var category by remember(capture.id) { mutableStateOf<Category?>(null) }
+    var sending by remember(capture.id) { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -253,13 +245,14 @@ private fun CaptureCard(
                 Button(
                     onClick = {
                         val selected = account ?: return@Button
+                        sending = true
                         onConfirm(
                             selected.id,
                             category?.id,
                             description.trim().ifBlank { capture.merchant }
                         )
                     },
-                    enabled = account != null,
+                    enabled = account != null && !sending,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = appColors.brandPrimary,
                         contentColor = appColors.onBrandPrimary

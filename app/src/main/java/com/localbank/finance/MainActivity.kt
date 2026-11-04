@@ -204,6 +204,7 @@ class MainActivity : ComponentActivity() {
                             scheduledExpenseDao = db.scheduledExpenseDao(),
                             budgetDao = db.budgetDao(),
                             savingsGoalDao = db.savingsGoalDao(),
+                            pendingCaptureDao = db.pendingCaptureDao(),
                             syncManager = syncManager,
                             householdId = householdId,
                             database = db
