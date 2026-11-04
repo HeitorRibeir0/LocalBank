@@ -102,19 +102,37 @@ fun AccountsScreen(
     }
 
     showDeleteDialog?.let { account ->
+        LaunchedEffect(account.id) {
+            val (txCount, schedCount) = viewModel.getAccountCounts(account.id)
+            deleteWarning = txCount to schedCount
+        }
+
+        val (txCount, schedCount) = deleteWarning ?: (0 to 0)
+        val warning = buildString {
+            append("Serão apagados ")
+            if (txCount > 0) append("$txCount lançamentos")
+            if (txCount > 0 && schedCount > 0) append(" e ")
+            if (schedCount > 0) append("$schedCount contas a pagar")
+            if (txCount == 0 && schedCount == 0) append("os dados")
+            append(", para todos do lar.\n\nIsso não pode ser desfeito.")
+        }
+
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = null },
+            onDismissRequest = { showDeleteDialog = null; deleteWarning = null },
             containerColor = DarkCard,
-            title = { Text("Excluir conta?", color = OnDarkText) },
-            text = { Text("A conta \"${account.name}\" será excluída.", color = OnDarkTextSecondary) },
+            title = { Text("Excluir \"${account.name}\"?", color = OnDarkText) },
+            text = { Text(warning, color = OnDarkTextSecondary) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteAccount(account)
                     showDeleteDialog = null
+                    deleteWarning = null
                 }) { Text("Excluir", color = ExpenseRed) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) { Text("Cancelar", color = OnDarkTextSecondary) }
+                TextButton(onClick = { showDeleteDialog = null; deleteWarning = null }) {
+                    Text("Cancelar", color = OnDarkTextSecondary)
+                }
             }
         )
     }

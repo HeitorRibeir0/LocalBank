@@ -161,6 +161,10 @@ class ExpenseViewModel(private val repository: FinanceRepository) : ViewModel() 
         }
     }
 
+    suspend fun getAccountCounts(accountId: String): Pair<Int, Int> {
+        return repository.getAccountCounts(accountId)
+    }
+
     // ── Categorias ──
 
     fun addCategory(name: String, colorHex: String, type: TransactionType) {
