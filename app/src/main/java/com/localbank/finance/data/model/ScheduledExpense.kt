@@ -47,7 +47,7 @@ data class ScheduledExpense(
 
     // --- estado ---
     val isPaid: Boolean = false,
-    val notified: Boolean = false,
+    val notifiedStage: Int = 0,     // 0=nada, 1=faltam 3 dias, 2=vence hoje/atrasada
 
     val createdBy: String? = null   // preenchido na Fase 2 com nome do usuário
 )

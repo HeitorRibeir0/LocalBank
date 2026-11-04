@@ -453,7 +453,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
         "id" to s.id, "accountId" to s.accountId, "categoryId" to s.categoryId,
         "amount" to s.amount, "description" to s.description, "dueDate" to s.dueDate,
         "isRecurring" to s.isRecurring, "recurrenceRule" to s.recurrenceRule?.name,
-        "isPaid" to s.isPaid, "notified" to s.notified, "createdBy" to s.createdBy
+        "isPaid" to s.isPaid, "notifiedStage" to s.notifiedStage, "createdBy" to s.createdBy
     )
 
     private fun budgetToMap(b: Budget): HashMap<String, Any?> = hashMapOf(
@@ -526,7 +526,7 @@ class FirestoreSyncManager(private val database: AppDatabase) {
                     try { RecurrenceRule.valueOf(it) } catch (_: Exception) { null }
                 },
                 isPaid = doc.getBoolean("isPaid") ?: false,
-                notified = doc.getBoolean("notified") ?: false,
+                notifiedStage = doc.getLong("notifiedStage")?.toInt() ?: if (doc.getBoolean("notified") == true) 1 else 0,
                 createdBy = doc.getString("createdBy")
             )
         } catch (_: Exception) { null }

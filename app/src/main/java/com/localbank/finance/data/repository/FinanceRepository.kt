@@ -201,8 +201,15 @@ class FinanceRepository(
     }
 
     suspend fun updateScheduled(expense: ScheduledExpense) {
-        scheduledExpenseDao.update(expense)
-        syncPush { it.pushScheduledExpense(householdId!!, expense) }
+        // Se a data de vencimento mudou, zera o estágio de notificação
+        val current = scheduledExpenseDao.getById(expense.id)
+        val toUpdate = if (current != null && current.dueDate != expense.dueDate) {
+            expense.copy(notifiedStage = 0)
+        } else {
+            expense
+        }
+        scheduledExpenseDao.update(toUpdate)
+        syncPush { it.pushScheduledExpense(householdId!!, toUpdate) }
     }
 
     suspend fun deleteScheduled(expense: ScheduledExpense) {
@@ -216,10 +223,11 @@ class FinanceRepository(
     suspend fun markAsNotified(id: String) =
         scheduledExpenseDao.markAsNotified(id)
 
-    /** Marca como avisada e envia a marcação ao Firestore, para o outro aparelho não avisar de novo. */
+    /** Marca como avisada e envia a marcação ao Firestore. */
     suspend fun markNotified(expense: ScheduledExpense) {
+        val nextStage = (expense.notifiedStage + 1).coerceAtMost(2)
         scheduledExpenseDao.markAsNotified(expense.id)
-        syncPush { it.pushScheduledExpense(householdId!!, expense.copy(notified = true)) }
+        syncPush { it.pushScheduledExpense(householdId!!, expense.copy(notifiedStage = nextStage)) }
     }
 
     suspend fun payScheduledExpense(expense: ScheduledExpense) {
@@ -269,7 +277,7 @@ class FinanceRepository(
                 id      = java.util.UUID.randomUUID().toString(),
                 dueDate = cal.timeInMillis,
                 isPaid  = false,
-                notified = false
+                notifiedStage = 0
             )
             scheduledExpenseDao.insert(next)
         }

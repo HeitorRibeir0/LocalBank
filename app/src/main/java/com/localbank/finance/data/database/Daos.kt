@@ -250,7 +250,7 @@ interface ScheduledExpenseDao {
 
     @Query("""
         SELECT * FROM scheduled_expenses
-        WHERE isPaid = 0 AND notified = 0
+        WHERE isPaid = 0 AND notifiedStage < 2
           AND dueDate BETWEEN :now AND :in7Days
     """)
     suspend fun getPendingNotification(now: Long, in7Days: Long): List<ScheduledExpense>
@@ -267,7 +267,7 @@ interface ScheduledExpenseDao {
     @Query("UPDATE scheduled_expenses SET isPaid = 1 WHERE id = :id")
     suspend fun markAsPaid(id: String)
 
-    @Query("UPDATE scheduled_expenses SET notified = 1 WHERE id = :id")
+    @Query("UPDATE scheduled_expenses SET notifiedStage = CASE WHEN notifiedStage < 2 THEN notifiedStage + 1 ELSE 2 END WHERE id = :id")
     suspend fun markAsNotified(id: String)
 
     @Delete

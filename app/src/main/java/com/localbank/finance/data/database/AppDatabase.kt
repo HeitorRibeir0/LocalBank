@@ -24,7 +24,7 @@ import java.util.UUID
         SavingsGoal::class,
         PendingCapture::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -63,6 +63,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Notificações com estágios (3 dias antes + dia do vencimento)
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE scheduled_expenses ADD COLUMN notifiedStage INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -78,7 +87,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "finance_secure_db"
                 )
                     .openHelperFactory(factory)
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigrationFrom(1, 2, 3)
                     .addCallback(prepopulateCallback)
                     .build()
