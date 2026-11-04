@@ -136,7 +136,7 @@ fun AddEntrySheet(
                 BasicTextField(
                     value = amountRaw,
                     onValueChange = { amountRaw = it.filter(Char::isDigit).take(10); error = null },
-                    visualTransformation = CurrencyVisualTransformation(),
+                    visualTransformation = remember { CurrencyVisualTransformation() },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     singleLine = true,
                     cursorBrush = SolidColor(c.brandPrimary),

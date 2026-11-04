@@ -4,6 +4,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,7 +35,7 @@ fun CurrencyField(
             onRawValueChange(new.filter { it.isDigit() }.take(10))
         },
         label = label,
-        visualTransformation = CurrencyVisualTransformation(),
+        visualTransformation = remember { CurrencyVisualTransformation() },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
         singleLine = true,
         modifier = modifier
@@ -42,7 +43,11 @@ fun CurrencyField(
 }
 
 class CurrencyVisualTransformation : VisualTransformation {
-    private val formatter = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR"))
+    companion object {
+        private val formatter = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR"))
+    }
+
+    private val formatter = Companion.formatter
 
     override fun filter(text: AnnotatedString): TransformedText {
         val raw = text.text

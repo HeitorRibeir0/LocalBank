@@ -155,7 +155,7 @@ fun ReportScreen(viewModel: ReportViewModel) {
             item {
                 Text("Detalhamento", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = OnDarkText)
             }
-            items(state.categoryExpenses) { catExpense ->
+            items(state.categoryExpenses, key = { it.categoryName }) { catExpense ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),

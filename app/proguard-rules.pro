@@ -1,6 +1,6 @@
 # ─── LocalBank ProGuard Rules ───
 
-# Manter modelos de dados (Room + Firestore precisam reflection)
+# Manter modelos de dados (Room precisa reflection; Firestore usa Map manual)
 -keep class com.localbank.finance.data.model.** { *; }
 
 # Room
@@ -9,21 +9,8 @@
     @androidx.room.* <methods>;
 }
 
-# Firebase
--keep class com.google.firebase.** { *; }
--keep class com.google.android.gms.** { *; }
--dontwarn com.google.firebase.**
--dontwarn com.google.android.gms.**
-
-# SQLCipher
--keep class net.sqlcipher.** { *; }
--dontwarn net.sqlcipher.**
-
-# Google Sign-In
--keep class com.google.android.gms.auth.** { *; }
-
-# Compose — não ofuscar previews e componentes
--keep class androidx.compose.** { *; }
+# SQLCipher (versão nova)
+-keep class net.zetetic.database.sqlcipher.** { *; }
 
 # Preservar nomes para stack traces
 -keepattributes SourceFile,LineNumberTable
