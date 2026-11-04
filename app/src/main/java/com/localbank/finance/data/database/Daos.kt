@@ -164,6 +164,25 @@ interface TransactionDao {
     """)
     fun expenseByCategory(from: Long, to: Long): Flow<List<CategoryTotal>>
 
+    // totais por mês (para relatório)
+    data class MonthlyTotal(
+        val monthYm: String,
+        val type: String,
+        val total: Double
+    )
+
+    @Query("""
+        SELECT
+            strftime('%Y-%m', date / 1000, 'unixepoch', 'localtime') AS monthYm,
+            type,
+            SUM(amount) AS total
+        FROM transactions
+        WHERE date BETWEEN :from AND :to
+        GROUP BY monthYm, type
+        ORDER BY monthYm DESC
+    """)
+    fun monthlyTotals(from: Long, to: Long): Flow<List<MonthlyTotal>>
+
     // soma de entradas num período
     @Query("""
         SELECT COALESCE(SUM(amount), 0.0) FROM transactions
