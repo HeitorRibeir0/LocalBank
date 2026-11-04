@@ -38,6 +38,7 @@ fun AccountsScreen(
     val currency = rememberCurrencyFormat()
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<Account?>(null) }
+    var deleteWarning by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     Scaffold(
         containerColor = DarkBg,

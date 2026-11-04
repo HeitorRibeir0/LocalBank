@@ -43,6 +43,12 @@ class FinanceRepository(
         syncPush { it.pushAccount(householdId!!, account) }
     }
 
+    suspend fun getAccountCounts(accountId: String): Pair<Int, Int> {
+        val txCount = accountDao.countTransactions(accountId)
+        val schedCount = accountDao.countScheduledExpenses(accountId)
+        return txCount to schedCount
+    }
+
     suspend fun deleteAccount(account: Account) {
         // O cascade local apaga transações e agendamentos da conta; no remoto é preciso apagar à mão
         val txIds = transactionDao.getAllOnce().filter { it.accountId == account.id }.map { it.id }

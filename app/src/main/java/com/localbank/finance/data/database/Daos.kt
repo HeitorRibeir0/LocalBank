@@ -22,6 +22,12 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE id = :id")
     suspend fun getById(id: String): Account?
 
+    @Query("SELECT COUNT(*) FROM transactions WHERE accountId = :accountId")
+    suspend fun countTransactions(accountId: String): Int
+
+    @Query("SELECT COUNT(*) FROM scheduled_expenses WHERE accountId = :accountId")
+    suspend fun countScheduledExpenses(accountId: String): Int
+
     // ABORT, não REPLACE: REPLACE apaga a conta antiga e o cascade apaga as transações dela
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(account: Account): Long
