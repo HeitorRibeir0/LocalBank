@@ -1,8 +1,5 @@
 package com.localbank.finance.ui.screens
 
-import android.app.Activity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -21,8 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.common.api.ApiException
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
 import com.localbank.finance.auth.AuthManager
 import com.localbank.ui.theme.*
 import kotlinx.coroutines.launch
@@ -33,39 +30,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(ApiException::class.java)
-                val idToken = account.idToken
-                if (idToken != null) {
-                    scope.launch {
-                        try {
-                            AuthManager.firebaseAuthWithGoogle(idToken)
-                            onLoginSuccess()
-                        } catch (e: Exception) {
-                            errorMessage = "Erro ao autenticar: ${e.localizedMessage}"
-                        } finally {
-                            isLoading = false
-                        }
-                    }
-                } else {
-                    errorMessage = "Token não recebido"
-                    isLoading = false
-                }
-            } catch (e: ApiException) {
-                errorMessage = "Login cancelado ou falhou (código: ${e.statusCode})"
-                isLoading = false
-            }
-        } else {
-            errorMessage = "Login cancelado"
-            isLoading = false
-        }
-    }
 
     Box(
         modifier = Modifier
@@ -120,8 +84,20 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 onClick = {
                     isLoading = true
                     errorMessage = null
-                    val signInIntent = AuthManager.getSignInIntent(context)
-                    launcher.launch(signInIntent)
+                    scope.launch {
+                        try {
+                            AuthManager.signInWithGoogle(context)
+                            onLoginSuccess()
+                        } catch (_: GetCredentialCancellationException) {
+                            errorMessage = "Login cancelado"
+                        } catch (_: NoCredentialException) {
+                            errorMessage = "Nenhuma conta Google neste aparelho. Adicione uma nas configurações do Android."
+                        } catch (e: Exception) {
+                            errorMessage = "Erro ao entrar: ${e.localizedMessage}"
+                        } finally {
+                            isLoading = false
+                        }
+                    }
                 },
                 enabled = !isLoading,
                 modifier = Modifier

@@ -1,18 +1,18 @@
 package com.localbank.finance.auth
 
 import android.content.Context
-import android.content.Intent
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
 
-/**
- * Gerencia autenticação com Google Sign-In via Firebase Auth.
- * Usa o método clássico (GoogleSignIn API) que funciona em todos os dispositivos.
- */
+/** Login com Google via Credential Manager + Firebase Auth. */
 object AuthManager {
 
     // Web Client ID (client_type 3) do google-services.json
@@ -34,32 +34,32 @@ object AuthManager {
         get() = auth.currentUser?.uid
 
     /**
-     * Retorna o Intent de login do Google para ser lançado com ActivityResultLauncher.
+     * Abre o seletor de contas do Google e entra no Firebase.
+     * [activityContext] precisa ser uma Activity (o seletor é uma tela por cima dela).
+     * Lança GetCredentialCancellationException se a pessoa fechar o seletor.
      */
-    fun getSignInIntent(context: Context): Intent {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(WEB_CLIENT_ID)
-            .requestEmail()
+    suspend fun signInWithGoogle(activityContext: Context): FirebaseUser {
+        // GetSignInWithGoogleOption é o fluxo do botão "Entrar com Google": mostra todas as contas,
+        // inclusive as que nunca entraram no app
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(GetSignInWithGoogleOption.Builder(WEB_CLIENT_ID).build())
             .build()
-        val client = GoogleSignIn.getClient(context, gso)
-        return client.signInIntent
+        val credential = CredentialManager.create(activityContext)
+            .getCredential(activityContext, request)
+            .credential
+
+        check(credential is CustomCredential &&
+            credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+            "Credencial inesperada: ${credential.type}"
+        }
+        val idToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
+        val result = auth.signInWithCredential(GoogleAuthProvider.getCredential(idToken, null)).await()
+        return result.user ?: throw IllegalStateException("Falha na autenticação")
     }
 
-    /**
-     * Processa o ID Token retornado pelo Google e autentica no Firebase.
-     */
-    suspend fun firebaseAuthWithGoogle(idToken: String): FirebaseUser {
-        val credential = GoogleAuthProvider.getCredential(idToken, null)
-        val result = auth.signInWithCredential(credential).await()
-        return result.user ?: throw Exception("Falha na autenticação")
-    }
-
-    fun signOut(context: Context) {
+    suspend fun signOut(context: Context) {
         auth.signOut()
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(WEB_CLIENT_ID)
-            .requestEmail()
-            .build()
-        GoogleSignIn.getClient(context, gso).signOut()
+        // Sem isso o próximo login entraria direto na mesma conta, sem perguntar
+        CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest())
     }
 }

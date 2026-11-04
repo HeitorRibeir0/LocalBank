@@ -6,8 +6,6 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.localbank.finance.data.model.*
 import com.localbank.finance.ui.util.normalizeCategoryName
@@ -177,19 +175,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private const val DB_NAME = "finance_secure_db"
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 System.loadLibrary("sqlcipher")
-                val passphrase = getOrCreatePassphrase(context)
+                val (passphrase, isNew) = DbPassphrase.getOrCreate(context)
+                if (isNew) context.deleteDatabase(DB_NAME)  // cifrado com uma senha que não existe mais
                 val factory = SupportOpenHelperFactory(passphrase)
 
                 Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "finance_secure_db"
+                    DB_NAME
                 )
                     .openHelperFactory(factory)
                     .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
@@ -197,59 +198,6 @@ abstract class AppDatabase : RoomDatabase() {
                     .addCallback(prepopulateCallback)
                     .build()
                     .also { INSTANCE = it }
-            }
-        }
-
-        /**
-         * Gera ou recupera uma passphrase segura para o SQLCipher.
-         * A passphrase é guardada em EncryptedSharedPreferences (protegida pelo Android Keystore).
-         */
-        private fun getOrCreatePassphrase(context: Context): ByteArray {
-            try {
-                val masterKey = MasterKey.Builder(context)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build()
-
-                val prefs = EncryptedSharedPreferences.create(
-                    context,
-                    "secure_db_prefs",
-                    masterKey,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                )
-
-                val existing = prefs.getString("db_passphrase", null)
-                if (existing != null) {
-                    return existing.toByteArray()
-                }
-
-                val newPassphrase = UUID.randomUUID().toString() + UUID.randomUUID().toString()
-                prefs.edit().putString("db_passphrase", newPassphrase).apply()
-                return newPassphrase.toByteArray()
-            } catch (e: Exception) {
-                // Falha ao ler passphrase criptografada (ex.: troca de celular).
-                // Limpar e recriar para que o app se recupere via recoverHousehold.
-                try {
-                    context.deleteSharedPreferences("secure_db_prefs")
-                    context.deleteDatabase("finance_secure_db")
-                } catch (_: Exception) {}
-
-                val newPassphrase = UUID.randomUUID().toString() + UUID.randomUUID().toString()
-                try {
-                    val masterKey = MasterKey.Builder(context)
-                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                        .build()
-                    val prefs = EncryptedSharedPreferences.create(
-                        context,
-                        "secure_db_prefs",
-                        masterKey,
-                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                    )
-                    prefs.edit().putString("db_passphrase", newPassphrase).apply()
-                } catch (_: Exception) {}
-
-                return newPassphrase.toByteArray()
             }
         }
 

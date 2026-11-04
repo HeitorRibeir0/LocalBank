@@ -90,8 +90,12 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.config)
 
-    // Google Sign-In (método clássico)
-    implementation("com.google.android.gms:play-services-auth:21.3.0")
+    // Login com Google (Credential Manager)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+    // Sem fragment direto a lint de release (InvalidFragmentVersionForActivityResult) barra o build
+    implementation(libs.androidx.fragment.ktx)
 
     // Banco criptografado
     implementation(libs.sqlcipher.android)
