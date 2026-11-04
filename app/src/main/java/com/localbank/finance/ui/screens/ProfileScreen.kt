@@ -72,9 +72,7 @@ fun ProfileScreen(
         joinError = null
         scope.launch {
             try {
-                val success = HouseholdManager.joinHousehold(
-                    context, AuthManager.userId!!, AuthManager.displayName, joinCode
-                )
+                val success = HouseholdManager.joinHousehold(context, AuthManager.displayName, joinCode)
                 if (success) {
                     joinSuccess = true
                     context.findActivity()?.recreate()

@@ -54,9 +54,7 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
         joinError = null
         scope.launch {
             try {
-                val success = HouseholdManager.joinHousehold(
-                    context, AuthManager.userId!!, AuthManager.displayName, codeInput
-                )
+                val success = HouseholdManager.joinHousehold(context, AuthManager.displayName, codeInput)
                 if (success) onHouseholdReady() else joinError = "Código inválido ou expirado"
             } catch (e: Exception) {
                 joinError = "Erro: ${e.localizedMessage}"
@@ -126,11 +124,7 @@ fun HouseholdScreen(onHouseholdReady: () -> Unit) {
                         isCreating = true
                         scope.launch {
                             try {
-                                val code = HouseholdManager.createHousehold(
-                                    context,
-                                    AuthManager.userId!!,
-                                    AuthManager.displayName
-                                )
+                                val code = HouseholdManager.createHousehold(context, AuthManager.displayName)
                                 inviteCode = code
                             } catch (e: Exception) {
                                 joinError = "Erro ao criar: ${e.localizedMessage}"

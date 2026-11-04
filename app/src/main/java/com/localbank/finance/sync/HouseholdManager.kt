@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.tasks.await
-import kotlin.random.Random
 
 /**
  * Gerencia o conceito de "lar" (household).
@@ -18,9 +18,9 @@ object HouseholdManager {
     private const val KEY_HOUSEHOLD_ID = "household_id"
     private const val KEY_NEEDS_DOWNLOAD = "needs_initial_download"
     private const val KEY_UPLOAD_DONE = "initial_upload_done"
-    private const val MAX_MEMBERS = 5
 
     private val db = FirebaseFirestore.getInstance()
+    private val functions = FirebaseFunctions.getInstance()
 
     @Volatile
     private var cachedPrefs: SharedPreferences? = null
@@ -129,142 +129,35 @@ object HouseholdManager {
         return householdId
     }
 
-    /**
-     * Cria um novo lar. Convite válido por 1 hora (mais seguro que 24h).
-     */
-    suspend fun createHousehold(
-        context: Context,
-        userId: String,
-        displayName: String
-    ): String {
-        val inviteCode = generateInviteCode()
-        val householdRef = db.collection("households").document()
-        val householdId = householdRef.id
-
-        val data = hashMapOf(
-            "ownerId" to userId,
-            "members" to listOf(userId),
-            "memberNames" to hashMapOf(userId to displayName),
-            "inviteCode" to inviteCode,
-            "inviteExpiresAt" to (System.currentTimeMillis() + 1 * 60 * 60 * 1000), // 1 hora
-            "createdAt" to System.currentTimeMillis()
-        )
-
-        // Batch para atomicidade: ambos ou nenhum
-        val batch = db.batch()
-        batch.set(householdRef, data)
-        batch.set(
-            db.collection("invites").document(inviteCode),
-            hashMapOf("householdId" to householdId)
-        )
-        batch.commit().await()
-
-        saveHouseholdId(context, householdId)
-        return inviteCode
+    /** Cria um novo lar (Cloud Function `createHousehold`) e devolve o código de convite, válido por 1 hora. */
+    suspend fun createHousehold(context: Context, displayName: String): String {
+        val data = call("createHousehold", mapOf("displayName" to displayName))
+        saveHouseholdId(context, data["householdId"] as String)
+        return data["inviteCode"] as String
     }
 
-    /**
-     * Gera um novo código de convite para o lar ATUAL (sem criar outro lar).
-     * O código anterior, se existir, é invalidado.
-     */
-    suspend fun createInvite(householdId: String): String {
-        val householdRef = db.collection("households").document(householdId)
-        val oldCode = householdRef.get().await().getString("inviteCode")
+    /** Gera um código novo para o lar atual; o anterior deixa de valer. */
+    suspend fun createInvite(householdId: String): String =
+        call("createInvite", mapOf("householdId" to householdId))["inviteCode"] as String
 
-        val inviteCode = generateInviteCode()
-        householdRef.update(
-            mapOf(
-                "inviteCode" to inviteCode,
-                "inviteExpiresAt" to (System.currentTimeMillis() + 1 * 60 * 60 * 1000) // 1 hora
-            )
-        ).await()
-
-        db.collection("invites").document(inviteCode).set(
-            hashMapOf("householdId" to householdId)
-        ).await()
-
-        if (oldCode != null && oldCode != inviteCode) {
-            db.collection("invites").document(oldCode).delete().await()
+    /** Entra num lar pelo código. Falso se o código não existir, tiver vencido ou o lar estiver cheio. */
+    suspend fun joinHousehold(context: Context, displayName: String, inviteCode: String): Boolean {
+        val data = call("joinHousehold", mapOf("code" to inviteCode.uppercase().trim(), "displayName" to displayName))
+        if (data["joined"] != true) return false
+        saveHouseholdId(context, data["householdId"] as String)
+        // Membro novo baixa os dados do lar antes de enviar os seus
+        if (data["alreadyMember"] != true) {
+            getSecurePrefs(context).edit().putBoolean(KEY_NEEDS_DOWNLOAD, true).apply()
         }
-        return inviteCode
-    }
-
-    /**
-     * Entra num lar existente. Após uso, o convite é invalidado.
-     */
-    suspend fun joinHousehold(
-        context: Context,
-        userId: String,
-        displayName: String,
-        inviteCode: String
-    ): Boolean {
-        val cleanCode = inviteCode.uppercase().trim()
-
-        val inviteDoc = db.collection("invites")
-            .document(cleanCode)
-            .get()
-            .await()
-
-        if (!inviteDoc.exists()) return false
-
-        val householdId = inviteDoc.getString("householdId") ?: return false
-
-        val householdDoc = db.collection("households")
-            .document(householdId)
-            .get()
-            .await()
-
-        if (!householdDoc.exists()) return false
-
-        // Verificar expiração
-        val expiresAt = householdDoc.getLong("inviteExpiresAt") ?: 0
-        if (System.currentTimeMillis() > expiresAt) return false
-
-        // Entrada numa transação: duas pessoas entrando ao mesmo tempo não passam do limite.
-        // Resultado: 0 = recusado, 1 = entrou agora, 2 = já era membro.
-        val householdRef = db.collection("households").document(householdId)
-        val result = db.runTransaction<Int> { tx ->
-            val snap = tx.get(householdRef)
-            if (!snap.exists()) return@runTransaction 0
-            val members = ((snap.get("members") as? List<*>) ?: emptyList<Any?>()).map { it.toString() }
-            if (members.contains(userId)) return@runTransaction 2
-            if (members.size >= MAX_MEMBERS) return@runTransaction 0
-            val names = HashMap<String, Any?>()
-            (snap.get("memberNames") as? Map<*, *>)?.forEach { (k, v) -> names[k.toString()] = v }
-            names[userId] = displayName
-            tx.update(householdRef, mapOf("members" to members + userId, "memberNames" to names))
-            1
-        }.await()
-        if (result == 0) return false
-        if (result == 2) {
-            saveHouseholdId(context, householdId)
-            return true
-        }
-
-        // Invalidar convite (uso único)
-        db.collection("invites").document(cleanCode).delete().await()
-
-        saveHouseholdId(context, householdId)
-
-        // Marcar que este membro precisa baixar os dados existentes
-        getSecurePrefs(context).edit().putBoolean(KEY_NEEDS_DOWNLOAD, true).apply()
-
         return true
     }
+
+    private suspend fun call(name: String, data: Map<String, Any>): Map<*, *> =
+        functions.getHttpsCallable(name).call(data).await().getData() as Map<*, *>
 
     suspend fun getMemberNames(householdId: String): Map<String, String> {
         val doc = db.collection("households").document(householdId).get().await()
         @Suppress("UNCHECKED_CAST")
         return (doc.get("memberNames") as? Map<String, String>) ?: emptyMap()
-    }
-
-    /**
-     * Código de 6 caracteres (SecureRandom), sem caracteres ambíguos (I, O, 0, 1).
-     * 32^6 = ~1 bilhão de combinações possíveis.
-     */
-    private fun generateInviteCode(): String {
-        val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-        val random = java.security.SecureRandom()
-        return (1..6).map { chars[random.nextInt(chars.length)] }.joinToString("")
     }
 }

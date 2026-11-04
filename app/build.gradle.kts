@@ -89,6 +89,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.config)
+    implementation(libs.firebase.functions)
 
     // Login com Google (Credential Manager)
     implementation(libs.androidx.credentials)
